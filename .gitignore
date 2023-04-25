@@ -1,14 +1,8 @@
-beholder-py/*
-clusterpod/*
-
 *.log
 .env
 
 # data
 data/
-
-# Pycharm
-.idea/
 
 # Node artifact files
 node_modules/
