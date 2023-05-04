@@ -6,7 +6,7 @@
 
 # About
 
-*biodiversity-model-trainer* is blah blah blah
+*biodiversity-model-trainer* is blah blah blah blah
 
 ___
 
