@@ -1,2 +1,3 @@
 tator
 python-dotenv
+piexif
