@@ -1,3 +1,5 @@
 tator
 python-dotenv
 piexif
+click
+deepsea-ai
