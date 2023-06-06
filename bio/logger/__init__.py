@@ -20,7 +20,7 @@ import logging
 from pathlib import Path
 from datetime import datetime as dt
 
-LOGGER_NAME = "VARSLABELBOT"
+LOGGER_NAME = "BIOMODELTRAINER"
 DEBUG = True
 
 
