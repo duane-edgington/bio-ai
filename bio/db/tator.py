@@ -69,7 +69,7 @@ def get_media(api: tator.api, project_id: int, media_ids: []):
         return None
 
 
-def download_data(api: tator.api, project_id: int, version: str, generator: str, output_path: Path):
+def download_data(api: tator.api, project_id: int, version: str, generator: str, output_path: Path, concept_list: []):
     """
     Download a dataset based on a version tag for training
     :param api: tator.api
@@ -118,9 +118,17 @@ def download_data(api: tator.api, project_id: int, version: str, generator: str,
             new_localizations = api.get_localization_list(project=project_id,
                                                           attribute=[f"generator::{generator}"],
                                                           start=start,
-                                                          stop=inc)
+                                                          stop=start+500)
             if len(new_localizations) == 0:
                 break
+
+            # Filter out localizations that are not in the concept list, or skip if the list is "all"
+            if concept_list != "all":
+                new_localizations = [l for l in new_localizations if l.attributes['concept'] in concept_list]
+
+            if len(new_localizations) == 0:
+                continue
+
             localizations = localizations + new_localizations
 
         info(f'Found {len(localizations)} records for version {version.name} and generator {generator}')

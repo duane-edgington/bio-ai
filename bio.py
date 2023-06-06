@@ -32,7 +32,8 @@ def cli():
 @click.option('--base-dir', default=DEFAULT_BASE_DIR, help='Base directory to save all data to.')
 @click.option('--version', default=DEFAULT_VERSION, help='Dataset version to download.')
 @click.option('--generator', default='vars-labelbot', help='Generator name, e.g. vars-labelbot or vars-annotation')
-def download(base_dir: str, version: str, generator: str):
+@click.option('--concepts', default='all', help='Comma separated list of concepts to download.')
+def download(base_dir: str, version: str, generator: str, concepts: str):
     create_logger_file(Path.cwd(), 'download')
     base_path = Path(base_dir)
     base_path.mkdir(exist_ok=True)
@@ -48,7 +49,10 @@ def download(base_dir: str, version: str, generator: str):
     info(f'Downloading dataset {version}')
     data_path = base_path / version
     data_path.mkdir(exist_ok=True)
-    download_data(api, project.id, version, generator, data_path)
+
+    # Convert comma separated list of concepts to a list
+    concept_list = concepts.split(',')
+    download_data(api, project.id, version, generator, data_path, concept_list)
 
 
 if __name__ == '__main__':

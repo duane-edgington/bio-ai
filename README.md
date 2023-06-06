@@ -17,21 +17,50 @@ conda env create
 conda activate bio
 ```
 
+## Commands
+
+* bio download --help` - Download data for training an object detection model 
+* `bio -h` - Print help message and exit.
+  
+## Usage
+
+Setup a .env file with the following contents:
+
+```ini
+TATOR_API_HOST=http://DiGiTS-Dev-Box-Fish.shore.mbari.org
+TATOR_API_TOKEN=15afoobaryourmediatoken
+```
+
+## Data
+
+Download data for model training in a format the [deepsea-ai module expects](https://docs.mbari.org/deepsea-ai/data/) with the download command, e.g.
+
+```shell
+python bio.py download --generator vars-labelbot --version Baseline --concepts "Krill molt, Eusergestes similis"
+```
+
+Once data is downloaded, split the data and continue to the [training command](https://docs.mbari.org/deepsea-ai/commands/train/). This requires setting up the AWS account.
+This should be done by an AWS administrator if you are not already setup.
+
+## Object Detection Training
+
+Training an object detection model requires the [deepsea-ai](https://github.com/mbari-org/deepsea-ai) module
+ 
+
 ### Setup the deepsea-ai module
 
-The deepsea-ai module is used for training.
-
-Add the appropriate AWS credentials to your environment using the aws command line tool.  
-To setup a profile specific to this project, e.g. 901103-bio
+The deepsea-ai module uses AWS for training and inference.  Add the appropriate AWS credentials to your environment using the aws command line tool, e.g.
+to setup a profile specific to this project, e.g. 901103-bio
 
 ```
 pip install awscli
 aws configure --profile 901103-bio
 ``` 
 
-Setup the AWS accounting by setting up a .ini file with the following contents:
+Setup AWS accounting by setting up a .ini file with the following contents:
 Replacing 548531997526 with the bio AWS account number
 
+e.g. ~/.aws/bio.ini
 ```ini
 [aws]
 sagemaker_arn = arn:aws:iam::548531997526:role/DeepSeaAI
@@ -55,12 +84,6 @@ Then run the setup command.  This will setup the appropriate AWS permissions and
 
 
 ```shell
-deepsea-aio setup --mirror
+deepsea-ai setup --mirror --config ~/.aws/bio.ini
 ```
 ---
-
-## Commands
-
-* bio download --help` - Download data for training an object detection model 
-* `bio -h` - Print help message and exit.
-  
