@@ -5,7 +5,9 @@ from pathlib import Path
 from PIL import Image
 import numpy as np
 import tator
-from keras.utils.np_utils import to_categorical
+import tensorflow as tf
+
+
 
 from bio.logger import info, debug, err, exception, warn
 
@@ -135,7 +137,7 @@ def create_cifar_dataset(data_path: Path, media_lookup_by_id, localizations: [],
                 labels.append(class_names.index(l))
 
         # One-hot encode the labels
-        labels = to_categorical(labels, len(class_names))
+        labels = tf.keras.utils.to_categorical(labels, len(class_names))
 
         # Save the data
         np.save(data_path / 'images.npy', images)
