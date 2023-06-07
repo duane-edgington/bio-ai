@@ -1,6 +1,11 @@
+import multiprocessing
 import os
+import tempfile
 from pathlib import Path
+from PIL import Image
+import numpy as np
 import tator
+from keras.utils.np_utils import to_categorical
 
 from bio.logger import info, debug, err, exception, warn
 
@@ -69,7 +74,78 @@ def get_media(api: tator.api, project_id: int, media_ids: []):
         return None
 
 
-def download_data(api: tator.api, project_id: int, version: str, generator: str, output_path: Path, concept_list: []):
+def get_image_label(temp_path: Path, image_path: Path, localizations):
+    """
+    Get the image and label for a localization
+    :param temp_path: Path to the temporary directory
+    :param image_path: Path to the image
+    :param localizations: Bounding box localization
+    :return: image, label
+    """
+    image_size = (32, 32)
+
+    # Get the image
+    image = Image.open(image_path)
+
+    loc_array = []
+
+    for l in localizations:
+        # Crop the image
+        cropped_image = image.crop((l.x, l.y, l.x + l.width, l.y + l.height))
+
+        # Resize the image
+        resized_image = cropped_image.resize(image_size)
+
+        loc_array.append(l.attributes['Label'])
+
+    # Convert to numpy array
+    image_array = np.asarray(resized_image)
+
+    # Save the image and label to the temporary directory as npy files
+    np.save(temp_path / f'{image_path.stem}.npy', image_array)
+    np.save(temp_path / f'{image_path.stem}_label.npy', loc_array)
+
+
+def create_cifar_dataset(data_path: Path, media_lookup_by_id, localizations: [], class_names: []):
+    """
+    Create CIFAR formatted data from a list of media and localizations
+    :param data_path: Path to save the data
+    :param media_lookup_by_id: Media id to media path lookup
+    :param localizations: List of localizations
+    :param class_names: List of class names
+    """
+    images = []
+    labels = []
+
+    with tempfile.TemporaryDirectory() as temp_path:
+        temp_path = Path(temp_path)
+
+        # Crop the images in parallel using multiprocessing to speed up the processing
+        num_processes = min(multiprocessing.cpu_count(), len(media_lookup_by_id))
+        with multiprocessing.Pool(num_processes) as pool:
+            args = [[temp_path, Path(media_path), [l for l in localizations if l.media == media_id]]  for media_id, media_path in media_lookup_by_id.items()]
+            pool.starmap(get_image_label, args)
+
+        # Read in the images and labels from a temporary directory
+        for image_path in temp_path.glob('*.npy'):
+            if 'label' in image_path.name:
+                continue
+            images.append(np.load(image_path.as_posix()).astype('float32')/255.0)
+            for l in np.load(temp_path / f'{image_path.stem}_label.npy'):
+                labels.append(class_names.index(l))
+
+        # One-hot encode the labels
+        labels = to_categorical(labels, len(class_names))
+
+        # Save the data
+        np.save(data_path / 'images.npy', images)
+        np.save(data_path / 'labels.npy', labels)
+
+    return images, labels
+
+
+def download_data(api: tator.api, project_id: int, version: str, generator: str, output_path: Path, concept_list: [],
+                  cifar: bool = False):
     """
     Download a dataset based on a version tag for training
     :param api: tator.api
@@ -77,6 +153,7 @@ def download_data(api: tator.api, project_id: int, version: str, generator: str,
     :param version: version tag
     :param generator: generator name, e.g. 'vars-labelbot' or 'vars-annotation'
     :param output_path: output directory to save the dataset
+    :param cifar: True if the dataset should also be stored in CIFAR format
     """
     try:
         # Get the version
@@ -118,7 +195,7 @@ def download_data(api: tator.api, project_id: int, version: str, generator: str,
             new_localizations = api.get_localization_list(project=project_id,
                                                           attribute=[f"generator::{generator}"],
                                                           start=start,
-                                                          stop=start+500)
+                                                          stop=start + 500)
             if len(new_localizations) == 0:
                 break
 
@@ -133,6 +210,8 @@ def download_data(api: tator.api, project_id: int, version: str, generator: str,
 
         info(f'Found {len(localizations)} records for version {version.name} and generator {generator}')
         info(f'Creating output directory {output_path} in YOLO format')
+
+        media_lookup_by_id = {}
 
         # Get all the unique media ids in the localizations
         media_ids = list(set([l.media for l in localizations]))
@@ -156,6 +235,8 @@ def download_data(api: tator.api, project_id: int, version: str, generator: str,
             # Get the media object
             media = [m for m in all_media if m.name.split('.png')[0] == media_name][0]
 
+            media_lookup_by_id[media.id] = media_path / media.name
+
             with (label_path / f'{media_name}.txt').open('w') as f:
                 # Get all the localizations for this media
                 media_localizations = [l for l in localizations if l.media == media.id]
@@ -178,6 +259,15 @@ def download_data(api: tator.api, project_id: int, version: str, generator: str,
                 for progress in tator.util.download_media(api, media, out_path):
                     print(f"Download progress: {progress}%")
 
+        # optionally create a CIFAR dataset
+        if cifar:
+            info(f'Creating output directory {output_path} in CIFAR format')
+            cifar_path = output_path / 'cifar'
+            cifar_path.mkdir(exist_ok=True)
+            # Create the CIFAR dataset
+            images, labels = create_cifar_dataset(cifar_path, media_lookup_by_id,  localizations, labels)
+            np.save(cifar_path / 'images.npy', images)
+            np.save(cifar_path / 'labels.npy', labels)
     except Exception as e:
         exception(e)
         exit(-1)

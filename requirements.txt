@@ -1,5 +1,9 @@
-tator
+tator~=1.0.0
 python-dotenv
 piexif
-click
+click~=8.1.3
 deepsea-ai
+keras~=2.12.0
+numpy~=1.24.3
+pillow~=9.5.0
+tensorflow

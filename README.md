@@ -39,8 +39,43 @@ Download data for model training in a format the [deepsea-ai module expects](htt
 python bio.py download --generator vars-labelbot --version Baseline --concepts "Krill molt, Eusergestes similis"
 ```
 
+Download data format is saved to a directory with the following structure e.g. for the Baseline version:
+
+```
+── Baseline
+│   │   ├── images
+│   │   │   └── image1.jpg
+│   │   │   └── image2.jpg
+│   │   ├── labels
+│   │   │   └── image1.txt
+│   │   │   └── image2.txt
+label-map.txt 
+```
+ 
 Once data is downloaded, split the data and continue to the [training command](https://docs.mbari.org/deepsea-ai/commands/train/). This requires setting up the AWS account.
 This should be done by an AWS administrator if you are not already setup.
+
+### CIFAR data format
+
+Use the optional --cifar flag to download data in the CIFAR format, e.g.
+
+The CIFAR data is saved in a npy file with the following structure:
+```shell 
+
+── Baseline
+│   │   ├── cifar
+│   │   │   └── labels.npy 
+│   │   │   └── images.npy
+```
+
+Read the data with the following code:
+
+```python
+import numpy as np
+images = np.load('labels.npy', allow_pickle=True)
+labels = np.load('labels.npy', allow_pickle=True)
+```
+
 
 ## Object Detection Training
 
