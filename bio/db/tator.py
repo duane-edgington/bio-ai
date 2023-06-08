@@ -89,23 +89,23 @@ def get_image_label(temp_path: Path, image_path: Path, localizations):
     # Get the image
     image = Image.open(image_path)
 
-    loc_array = []
+    width, height = image.size
 
-    for l in localizations:
+    for i, l in enumerate(localizations):
         # Crop the image
-        cropped_image = image.crop((l.x, l.y, l.x + l.width, l.y + l.height))
+        cropped_image = image.crop((int(width*l.x),
+                                    int(height*l.y),
+                                    int(width*(l.x + l.width)),
+                                    int(height*(l.y + l.height))))
 
         # Resize the image
         resized_image = cropped_image.resize(image_size)
 
-        loc_array.append(l.attributes['Label'])
+        # Convert to numpy array
+        image_array = np.asarray(resized_image)
 
-    # Convert to numpy array
-    image_array = np.asarray(resized_image)
-
-    # Save the image and label to the temporary directory as npy files
-    np.save(temp_path / f'{image_path.stem}.npy', image_array)
-    np.save(temp_path / f'{image_path.stem}_label.npy', loc_array)
+        # Save the image and label to the temporary directory as npy files
+        np.save(temp_path / f"{image_path.stem}-image-{l.attributes['Label']}.npy", image_array)
 
 
 def create_cifar_dataset(data_path: Path, media_lookup_by_id, localizations: [], class_names: []):
@@ -129,15 +129,12 @@ def create_cifar_dataset(data_path: Path, media_lookup_by_id, localizations: [],
             pool.starmap(get_image_label, args)
 
         # Read in the images and labels from a temporary directory
-        for image_path in temp_path.glob('*.npy'):
-            if 'label' in image_path.name:
-                continue
-            images.append(np.load(image_path.as_posix()).astype('float32')/255.0)
-            for l in np.load(temp_path / f'{image_path.stem}_label.npy'):
-                labels.append(class_names.index(l))
+        for npy in sorted(temp_path.glob('*.npy')):
+            images.append(np.load(npy.as_posix()).astype('int32'))
 
-        # One-hot encode the labels
-        labels = tf.keras.utils.to_categorical(labels, len(class_names))
+            # label name is the last part of the filename after the -
+            label_name = npy.stem.split('-')[-1]
+            labels.append([int(class_names.index(label_name))])
 
         # Save the data
         np.save(data_path / 'images.npy', images)
@@ -264,14 +261,14 @@ def download_data(api: tator.api, project_id: int, group:str, version: str, gene
             out_path = media_path / media.name
             if not out_path.exists():
                 for progress in tator.util.download_media(api, media, out_path):
-                    print(f"Download progress: {progress}%")
+                    debug(f"{media.name} download progress: {progress}%")
 
-        # optionally create a CIFAR dataset
+        # optionally create a CIFAR formatted dataset
         if cifar:
             info(f'Creating output directory {output_path} in CIFAR format')
             cifar_path = output_path / 'cifar'
             cifar_path.mkdir(exist_ok=True)
-            # Create the CIFAR dataset
+
             images, labels = create_cifar_dataset(cifar_path, media_lookup_by_id,  localizations, labels)
             np.save(cifar_path / 'images.npy', images)
             np.save(cifar_path / 'labels.npy', labels)
