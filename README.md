@@ -105,12 +105,12 @@ aws configure --profile 901103-bio
 ``` 
 
 Setup AWS accounting by setting up a .ini file with the following contents:
-Replacing 548531997526 with the bio AWS account number
+975513124282 is the "901103 Biodiversity and Biooptics" MBARI project AWS account number
 
 e.g. ~/.aws/bio.ini
 ```ini
 [aws]
-sagemaker_arn = arn:aws:iam::548531997526:role/DeepSeaAI
+sagemaker_arn = arn:aws:iam::975513124282:role/DeepSeaAI
 yolov5_ecr = mbari/deepsea-yolov5:1.1.2
 deepsort_ecr = mbari/deepsort-yolov5:1.3.5
 strongsort_ecr = mbari/strongsort-yolov5:1.5.0
