@@ -55,11 +55,23 @@ label-map.txt
 Once data is downloaded, split the data and continue to the [training command](https://docs.mbari.org/deepsea-ai/commands/train/). This requires setting up the AWS account.
 This should be done by an AWS administrator if you are not already setup.
 
+### Options
+
+| Option | Description                                                                                                              |
+| --- |--------------------------------------------------------------------------------------------------------------------------|
+ | --help | Show the help message and exit.                                                                                          |
+| --base-dir | The base directory to save the downloaded data.  The default is the current directory.                                   |
+| --generator| The name of the generator to download data from.                                                                         |
+| --version| The version of the generator to download data from. Default is Baseline.                                                 |
+| --concepts| A comma separated list of concepts to download data for.  This is the name of the concept, e.g. Krill molt, Nanomia.     |
+| --cifar| Download data in the CIFAR format.  The default is to download data in the format to train a YOLO object detection model |
+| --group| The name of the group to download data for.  The default is to download data for all groups.                             |
+
 ### CIFAR data format
 
 Use the optional --cifar flag to download data in the CIFAR format, e.g.
 
-The CIFAR data is saved in a npy file with the following structure:
+The CIFAR data is saved in a npy file with the following structure, e.g. for the data version Baseline:
 ```shell 
 
 ── Baseline

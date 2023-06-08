@@ -146,12 +146,13 @@ def create_cifar_dataset(data_path: Path, media_lookup_by_id, localizations: [],
     return images, labels
 
 
-def download_data(api: tator.api, project_id: int, version: str, generator: str, output_path: Path, concept_list: [],
+def download_data(api: tator.api, project_id: int, group:str, version: str, generator: str, output_path: Path, concept_list: [],
                   cifar: bool = False):
     """
     Download a dataset based on a version tag for training
     :param api: tator.api
     :param project_id: project id
+    :param group: group name
     :param version: version tag
     :param generator: generator name, e.g. 'vars-labelbot' or 'vars-annotation'
     :param output_path: output directory to save the dataset
@@ -172,10 +173,14 @@ def download_data(api: tator.api, project_id: int, version: str, generator: str,
         info(version)
 
         # TODO: figure out out to get annotations for a specific version
+        if generator:
+            attribute_filter = [f"generator::{generator}"]
+        if group:
+            attribute_filter += [f"group::{group}"]
 
         # Get the annotations in chunks of 500 or less if there are less than 500
         num_records = api.get_localization_count(project=project_id,
-                                                 attribute=[f"generator::{generator}"])
+                                                 attribute=attribute_filter)
 
         info(f'Found {num_records} records for version {version.name} and generator {generator}')
 
@@ -195,18 +200,18 @@ def download_data(api: tator.api, project_id: int, version: str, generator: str,
         for start in range(0, num_records, inc):
             info(f'Query records {start} to {inc}')
             new_localizations = api.get_localization_list(project=project_id,
-                                                          attribute=[f"generator::{generator}"],
+                                                          attribute=attribute_filter,
                                                           start=start,
                                                           stop=start + 500)
             if len(new_localizations) == 0:
                 break
 
             # Filter out localizations that are not in the concept list, or skip if the list is "all"
-            if concept_list != "all":
+            if concept_list != ["all"]:
                 new_localizations = [l for l in new_localizations if l.attributes['concept'] in concept_list]
 
             if len(new_localizations) == 0:
-                continue
+                break
 
             localizations = localizations + new_localizations
 
