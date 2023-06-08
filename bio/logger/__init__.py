@@ -63,6 +63,12 @@ class CustomLogger(Singleton):
 
         self.logger.info(f"Logging to {self.log_filename}")
 
+        # log to console
+        handler = logging.StreamHandler()
+        handler.setFormatter(formatter)
+        handler.setLevel(logging.DEBUG if DEBUG else logging.INFO)
+        self.logger.addHandler(handler)
+
     def loggers(self) -> logging.Logger:
         return self.logger
 
