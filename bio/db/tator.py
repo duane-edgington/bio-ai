@@ -137,6 +137,12 @@ def create_cifar_dataset(data_path: Path, media_lookup_by_id, localizations: [],
             labels.append([int(class_names.index(label_name))])
 
         # Save the data
+        image_path = data_path / 'images.npy'
+        label_path = data_path / 'labels.npy'
+        if image_path.exists():
+            image_path.unlink()
+        if label_path.exists():
+            label_path.unlink()
         np.save(data_path / 'images.npy', images)
         np.save(data_path / 'labels.npy', labels)
 
