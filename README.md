@@ -84,7 +84,7 @@ Read the data with the following code:
 
 ```python
 import numpy as np
-images = np.load('labels.npy', allow_pickle=True)
+images = np.load('images.npy', allow_pickle=True)
 labels = np.load('labels.npy', allow_pickle=True)
 ```
 
