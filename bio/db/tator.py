@@ -201,7 +201,7 @@ def download_data(api: tator.api, project_id: int, group:str, version: str, gene
         localizations = []
         inc = min(500, num_records)
         for start in range(0, num_records, inc):
-            info(f'Query records {start} to {inc}')
+            info(f'Query records {start} to {start + 500}')
             new_localizations = api.get_localization_list(project=project_id,
                                                           attribute=attribute_filter,
                                                           start=start,
@@ -213,8 +213,8 @@ def download_data(api: tator.api, project_id: int, group:str, version: str, gene
             if concept_list != ["all"]:
                 new_localizations = [l for l in new_localizations if l.attributes['concept'].strip().lower() in concept_list]
 
-            if len(new_localizations) == 0:
-                break
+            #if len(new_localizations) == 0:
+            #    break
 
             localizations = localizations + new_localizations
 
@@ -228,6 +228,7 @@ def download_data(api: tator.api, project_id: int, group:str, version: str, gene
 
         # Get all the media objects at those ids
         all_media = get_media(api, project_id, media_ids)
+        info(f'Total unique media items are {len(all_media)}')
 
         # Get all the unique media names
         media_names = list(set([m.name.split('.png')[0] for m in all_media]))
@@ -255,7 +256,7 @@ def download_data(api: tator.api, project_id: int, group:str, version: str, gene
                     label_idx = labels.index(loc.attributes['Label'])
 
                     # Get the bounding box which is normalized to a 0-1 range and centered
-                    f.write(f'{label_idx} {loc.x} {loc.y} {loc.width} {loc.height}\n')
+                    #f.write(f'{label_idx} {loc.x} {loc.y} {loc.width} {loc.height}\n')
                     x = loc.x + loc.width / 2
                     y = loc.y + loc.height / 2
                     w = loc.width
