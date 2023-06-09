@@ -211,7 +211,7 @@ def download_data(api: tator.api, project_id: int, group:str, version: str, gene
 
             # Filter out localizations that are not in the concept list, or skip if the list is "all"
             if concept_list != ["all"]:
-                new_localizations = [l for l in new_localizations if l.attributes['concept'] in concept_list]
+                new_localizations = [l for l in new_localizations if l.attributes['concept'].strip().lower() in concept_list]
 
             if len(new_localizations) == 0:
                 break

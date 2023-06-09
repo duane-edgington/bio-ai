@@ -54,6 +54,8 @@ def download(base_dir: str, group: str, version: str, generator: str, concepts: 
 
     # Convert comma separated list of concepts to a list
     concept_list = concepts.split(',')
+    
+    concept_list = [l.strip().lower() for l in concept_list]
     download_data(api, project.id, group, version, generator, data_path, concept_list, cifar)
 
 
