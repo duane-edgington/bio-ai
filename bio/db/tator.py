@@ -217,7 +217,8 @@ def download_data(api: tator.api, project_id: int, group:str, version: str, gene
                 # Fetch localizations for user requested concepts only 
                 # api only allows us to fetch one concept at a time
                 new_localizations_per_concept = [api.get_localization_list(project=project_id,
-                                                     attribute=attribute_filter + [f"concept::{concept.strip()}"]) for concept in concept_list]
+                                                     attribute=attribute_filter + [f"concept::{concept.strip()}"], start=start, 
+                                                     stop=start + 500) for concept in concept_list]
                 # new_localizations_per_concept is a list of lists. Merge into a single list.
                 new_localizations = list(itertools.chain.from_iterable(new_localizations_per_concept))
 
