@@ -6,7 +6,7 @@ from PIL import Image
 import numpy as np
 import tator
 import tensorflow as tf
-
+import itertools
 
 
 from bio.logger import info, debug, err, exception, warn
@@ -181,8 +181,18 @@ def download_data(api: tator.api, project_id: int, group:str, version: str, gene
         if group:
             attribute_filter += [f"group::{group}"]
 
+        
         # Get the annotations in chunks of 500 or less if there are less than 500
-        num_records = api.get_localization_count(project=project_id,
+        if concept_list!=['all']:
+            # Fetch number of localizations for user requested concepts only 
+            # api only allows us to fetch one concept at a time
+            num_records_per_concept = [api.get_localization_count(project=project_id,
+                                                 attribute=attribute_filter + [f"concept::{concept.strip()}"]) for concept in concept_list]
+            num_records = sum(num_records_per_concept)
+
+        else:
+            # Get all the localizations avaiable in database
+            num_records = api.get_localization_count(project=project_id,
                                                  attribute=attribute_filter)
 
         info(f'Found {num_records} records for version {version.name} and generator {generator}')
@@ -202,7 +212,17 @@ def download_data(api: tator.api, project_id: int, group:str, version: str, gene
         inc = min(500, num_records)
         for start in range(0, num_records, inc):
             info(f'Query records {start} to {start + 500}')
-            new_localizations = api.get_localization_list(project=project_id,
+
+            if concept_list!=['all']:
+                # Fetch localizations for user requested concepts only 
+                # api only allows us to fetch one concept at a time
+                new_localizations_per_concept = [api.get_localization_list(project=project_id,
+                                                     attribute=attribute_filter + [f"concept::{concept.strip()}"]) for concept in concept_list]
+                # new_localizations_per_concept is a list of lists. Merge into a single list.
+                new_localizations = list(itertools.chain.from_iterable(new_localizations_per_concept))
+
+            else:
+                new_localizations = api.get_localization_list(project=project_id,
                                                           attribute=attribute_filter,
                                                           start=start,
                                                           stop=start + 500)
@@ -210,8 +230,8 @@ def download_data(api: tator.api, project_id: int, group:str, version: str, gene
                 break
 
             # Filter out localizations that are not in the concept list, or skip if the list is "all"
-            if concept_list != ["all"]:
-                new_localizations = [l for l in new_localizations if l.attributes['concept'].strip().lower() in concept_list]
+            # if concept_list != ["all"]:
+            #     new_localizations = [l for l in new_localizations if l.attributes['concept'].strip().lower() in concept_list]
 
             #if len(new_localizations) == 0:
             #    break
