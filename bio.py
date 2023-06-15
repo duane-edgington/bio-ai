@@ -53,8 +53,11 @@ def download(base_dir: str, group: str, version: str, generator: str, concepts: 
     data_path.mkdir(exist_ok=True)
 
     # Convert comma separated list of concepts to a list
-    concept_list = concepts.split(',')
-    concept_list = [l.strip() for l in concept_list]
+    if concepts == 'all':
+        concept_list = None
+    else:
+        concept_list = concepts.split(',')
+        concept_list = [l.strip() for l in concept_list]
     download_data(api, project.id, group, version, generator, data_path, concept_list, cifar)
 
 

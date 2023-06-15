@@ -183,7 +183,7 @@ def download_data(api: tator.api, project_id: int, group:str, version: str, gene
 
         
         # Get the annotations in chunks of 500 or less if there are less than 500
-        if concept_list!=['all']:
+        if concept_list:
             # Fetch number of localizations for user requested concepts only 
             # api only allows us to fetch one concept at a time
             num_records_per_concept = [api.get_localization_count(project=project_id,
@@ -213,7 +213,7 @@ def download_data(api: tator.api, project_id: int, group:str, version: str, gene
         for start in range(0, num_records, inc):
             info(f'Query records {start} to {start + 500}')
 
-            if concept_list!=['all']:
+            if concept_list:
                 # Fetch localizations for user requested concepts only 
                 # api only allows us to fetch one concept at a time
                 new_localizations_per_concept = [api.get_localization_list(project=project_id,
