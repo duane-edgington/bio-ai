@@ -195,10 +195,10 @@ def download_data(api: tator.api, project_id: int, group:str, version: str, gene
             num_records = api.get_localization_count(project=project_id,
                                                  attribute=attribute_filter)
 
-        info(f'Found {num_records} records for version {version.name} and generator {generator}')
+        info(f'Found {num_records} records for version {version.name} and generator {generator} and group {group}')
 
         if num_records == 0:
-            err(f'Could not find any records for version {version.name} and generator {generator}')
+            err(f'Could not find any records for version {version.name} and generator {generator} and group {group}')
             return
 
         # Create the output directory in the expected format that deepsea-ai expects for training
