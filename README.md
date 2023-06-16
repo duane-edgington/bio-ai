@@ -141,7 +141,7 @@ deepsea-ai setup --mirror --config ~/.aws/bio.ini
 
 Now that the data is downloaded, you can train a model.  Train a model by first splitting the data first, e.g.
 
-**Note** this will randomly split 85% of the data for training, 10% for a validation and 5% as a hold out for testing.
+**Note** this will randomly split 85% of the data for training, 10% for validation and 5% as a hold out for testing.
 
 ```shell
 deepsea-ai split --input Baseline --output BaselineSplit
@@ -150,5 +150,5 @@ deepsea-ai split --input Baseline --output BaselineSplit
 Then train the model
 
 ```shell
-deepsea-ai train --images BaselineSplit/images.tar.gz  --labels BaselineSplit/labels.tar.gz --model yolov5x --epochs 50 --label-map Baseline/yolo.names --instance-type ml.p3.16xlarge  --batch-size 32 --input-s3 901103-bio-data --output-s3 901103-bio-ckpt
+deepsea-ai train --images BaselineSplit/images.tar.gz  --labels BaselineSplit/labels.tar.gz --model yolov5x --epochs 50 --label-map label-map.txt --instance-type ml.p3.16xlarge  --batch-size 32 --input-s3 901103-bio-data --output-s3 901103-bio-ckpt
 ```
