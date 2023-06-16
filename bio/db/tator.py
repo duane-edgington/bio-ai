@@ -303,3 +303,83 @@ def download_data(api: tator.api, project_id: int, group:str, version: str, gene
     except Exception as e:
         exception(e)
         exit(-1)
+
+
+def assign_cluster(api: tator.api, project_id: int, group: str, version: str, generator: str,
+                  clusters: [], concept: str):
+    """
+    Assign a cluster a new concept
+    :param api: tator.api
+    :param project_id: project id
+    :param group: group name
+    :param version: version tag
+    :param generator: generator name, e.g. 'vars-labelbot' or 'vars-annotation'
+    :param clusters: list of clusters to reassign,
+    :param concept: concept to assign to the cluster
+    """
+    # Fetch localizations in the cluster and update them up to 500 at a time
+    for c in clusters:
+        cluster_filter = f"cluster::{c.strip()}"
+
+        if generator:
+            attribute_filter = [f"generator::{generator}"]
+        if group:
+            attribute_filter += [f"group::{group}"]
+        if version:
+            attribute_filter += [f"version::{version}"]
+
+        attribute_filter += [cluster_filter]
+        num_records = api.get_localization_count(project=project_id,
+                                                 attribute=attribute_filter)
+        inc = min(500, num_records)
+        for start in range(0, num_records, inc):
+            info(f'Query records {start} to {start + 500}')
+            localizations = api.get_localization_list(project=project_id,
+                                                      attribute=attribute_filter,
+                                                      start=start,
+                                                      stop=start + 500)
+            # Update the concept and Label attributes
+            for l in localizations:
+                l.attributes['concept'] = concept
+                l.attributes['Label'] = concept
+                l.version = None
+
+                api.update_localization(l.id, l)
+
+
+def delete_cluster(api: tator.api, project_id: int, group: str, version: str, generator: str,
+                  clusters: []):
+    """
+    Delete cluster(s)
+    :param api: tator.api
+    :param project_id: project id
+    :param group: group name
+    :param version: version tag
+    :param generator: generator name, e.g. 'vars-labelbot' or 'vars-annotation'
+    :param clusters: list of clusters to reassign,
+    """
+    # Fetch localizations in the cluster and delete them up to 500 at a time
+    for c in clusters:
+        cluster_filter = f"cluster::{c.strip()}"
+
+        if generator:
+            attribute_filter = [f"generator::{generator}"]
+        if group:
+            attribute_filter += [f"group::{group}"]
+        if version:
+            attribute_filter += [f"version::{version}"]
+
+        attribute_filter += [cluster_filter]
+        num_records = api.get_localization_count(project=project_id,
+                                                 attribute=attribute_filter)
+        inc = min(500, num_records)
+        for start in range(0, num_records, inc):
+            info(f'Query records {start} to {start + 500}')
+            localizations = api.get_localization_list(project=project_id,
+                                                      attribute=attribute_filter,
+                                                      start=start,
+                                                      stop=start + 500)
+            if localizations:
+                for l in localizations:
+                    info(f'Deleting localization {l.id}')
+                    api.delete_localization(l.id)

@@ -4,7 +4,7 @@ import click as click
 from pathlib import Path
 
 from bio import __version__
-from bio.db.tator import init_api, download_data, find_project
+from bio.db.tator import init_api, download_data, find_project, assign_cluster, delete_cluster
 from bio.logger import create_logger_file, info, err
 
 # Default values
@@ -30,11 +30,11 @@ def cli():
 
 @cli.command(name="download", help='Download a dataset for training')
 @click.option('--base-dir', default=DEFAULT_BASE_DIR, help='Base directory to save all data to.')
-@click.option('--group',  help='Group name, e.g. VB250')
-@click.option('--version', default=DEFAULT_VERSION, help='Dataset version to download.')
+@click.option('--group', help='Group name, e.g. VB250')
+@click.option('--version', default=DEFAULT_VERSION, help=f'Dataset version to download. Defaults to {DEFAULT_VERSION}.')
 @click.option('--generator', default='vars-labelbot', help='Generator name, e.g. vars-labelbot or vars-annotation')
 @click.option('--concepts', default='all', help='Comma separated list of concepts to download.')
-@click.option('--cifar',  is_flag=True, help='Comma separated list of concepts to download.')
+@click.option('--cifar', is_flag=True, help='Comma separated list of concepts to download.')
 def download(base_dir: str, group: str, version: str, generator: str, concepts: str, cifar: bool):
     create_logger_file(Path.cwd(), 'download')
     base_path = Path(base_dir)
@@ -60,6 +60,46 @@ def download(base_dir: str, group: str, version: str, generator: str, concepts: 
         concept_list = [l.strip() for l in concept_list]
     download_data(api, project.id, group, version, generator, data_path, concept_list, cifar)
 
+@cli.command(name="assign", help='Assign concepts to clusters')
+@click.option('--group', help='Group name, e.g. VB250')
+@click.option('--version', default=DEFAULT_VERSION, help=f'Dataset version to assign. Defaults to {DEFAULT_VERSION}.')
+@click.option('--generator', default='vars-labelbot', help='Generator name, e.g. vars-labelbot or vars-annotation')
+@click.option('--clusters', default='all', help='Comma separated list of clusters to assign.')
+@click.option('--concept', type=str, help='Concept to assign')
+def assign(group: str, version: str, generator: str, clusters: str, concept: str):
+    create_logger_file(Path.cwd(), 'assign')
+
+    # Connect to the database api
+    api = init_api()
+
+    # Find the project
+    project = find_project(api, DEFAULT_PROJECT)
+    info(f'Found project id: {project.name} for project {DEFAULT_PROJECT}')
+
+    # Find all localizations with the given generator and group and cluster
+    cluster_list = clusters.split(',')
+    assign_cluster(api, project_id=project.id, version=version, generator=generator, group=group, clusters=cluster_list,
+                   concept=concept)
+
+
+@cli.command(name="delete", help='Delete clusters')
+@click.option('--group', help='Group name, e.g. VB250')
+@click.option('--version', default=DEFAULT_VERSION, help=f'Dataset version to assign. Defaults to {DEFAULT_VERSION}.')
+@click.option('--generator', default='vars-labelbot', help='Generator name, e.g. vars-labelbot or vars-annotation')
+@click.option('--clusters', default='all', help='Comma separated list of clusters to assign.')
+def assign(group: str, version: str, generator: str, clusters: str):
+    create_logger_file(Path.cwd(), 'assign')
+
+    # Connect to the database api
+    api = init_api()
+
+    # Find the project
+    project = find_project(api, DEFAULT_PROJECT)
+    info(f'Found project id: {project.name} for project {DEFAULT_PROJECT}')
+
+    # Find all localizations with the given generator and group and cluster
+    cluster_list = clusters.split(',')
+    delete_cluster(api, project_id=project.id, version=version, generator=generator, group=group, clusters=cluster_list)
 
 if __name__ == '__main__':
     try:
