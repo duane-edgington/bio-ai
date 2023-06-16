@@ -77,6 +77,7 @@ The CIFAR data is saved in a npy file with the following structure, e.g. for the
 ```shell 
 
 ── Baseline
+|   |   |-- label-map.txt
 │   │   ├── cifar
 │   │   │   └── labels.npy 
 │   │   │   └── images.npy
