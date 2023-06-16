@@ -31,9 +31,11 @@ TATOR_API_HOST=http://DiGiTS-Dev-Box-Fish.shore.mbari.org
 TATOR_API_TOKEN=15afoobaryourmediatoken
 ```
 
-## Data
+## Data Download
 
 Download data for model training in a format the [deepsea-ai module expects](https://docs.mbari.org/deepsea-ai/data/) with the download command, e.g.
+
+Note - if your leave of the concepts option, the default is to fetch **all** concepts.
 
 ```shell
 python bio.py download --generator vars-labelbot --version Baseline --concepts "Krill molt, Eusergestes similis"
@@ -69,7 +71,7 @@ This should be done by an AWS administrator if you are not already setup.
 
 ### CIFAR data format
 
-Use the optional --cifar flag to download data in the CIFAR format, e.g.
+Use the optional --cifar flag to download data in the[ [CIFAR](https://www.cs.toronto.edu/~kriz/cifar.html) format, e.g.
 
 The CIFAR data is saved in a npy file with the following structure, e.g. for the data version Baseline:
 ```shell 
@@ -134,3 +136,19 @@ Then run the setup command.  This will setup the appropriate AWS permissions and
 deepsea-ai setup --mirror --config ~/.aws/bio.ini
 ```
 ---
+
+### Train a model
+
+Now that the data is downloaded, you can train a model.  Train a model by first splitting the data first, e.g.
+
+**Note** this will randomly split 85% of the data for training, 10% for a validation and 5% as a hold out for testing.
+
+```shell
+deepsea-ai split --input Baseline --output BaselineSplit
+```
+
+Then train the model
+
+```shell
+deepsea-ai train --images BaselineSplit/images.tar.gz  --labels BaselineSplit/labels.tar.gz --model yolov5x --epochs 50 --label-map Baseline/yolo.names --instance-type ml.p3.16xlarge  --batch-size 32 --input-s3 901103-bio-data --output-s3 901103-bio-ckpt
+```
