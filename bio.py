@@ -4,7 +4,7 @@ import click as click
 from pathlib import Path
 
 from bio import __version__
-from bio.db.tator import init_api, download_data, find_project, assign_cluster, delete_cluster
+from bio.db.tator import init_api, download_data, find_project, assign_cluster, delete_cluster, assign_iou
 from bio.logger import create_logger_file, info, err
 
 # Default values
@@ -60,6 +60,7 @@ def download(base_dir: str, group: str, version: str, generator: str, concepts: 
         concept_list = [l.strip() for l in concept_list]
     download_data(api, project.id, group, version, generator, data_path, concept_list, cifar)
 
+
 @cli.command(name="assign", help='Assign concepts to clusters')
 @click.option('--group', help='Group name, e.g. VB250')
 @click.option('--version', default=DEFAULT_VERSION, help=f'Dataset version to assign. Defaults to {DEFAULT_VERSION}.')
@@ -100,6 +101,32 @@ def assign(group: str, version: str, generator: str, clusters: str):
     # Find all localizations with the given generator and group and cluster
     cluster_list = clusters.split(',')
     delete_cluster(api, project_id=project.id, version=version, generator=generator, group=group, clusters=cluster_list)
+
+
+@cli.command(name="iou", help='Assign from iou from one group/generator to another')
+@click.option('--group-source', help='Group name, e.g. YOLOv5-MIDWATER102')
+@click.option('--group-target', help='Group name, e.g. VB250')
+@click.option('--version', default=DEFAULT_VERSION, help=f'Dataset version to assign. Defaults to {DEFAULT_VERSION}.')
+@click.option('--conf', default=0.2, help='Confidence threshold for iou assignment. Defaults to 0.2.')
+def iou(group_source: str, group_target: str, version: str, conf: float):
+    generator = 'vars-labelbot'
+    create_logger_file(Path.cwd(), 'assign')
+
+    # Connect to the database api
+    api = init_api()
+
+    # Find the project
+    project = find_project(api, DEFAULT_PROJECT)
+    info(f'Found project id: {project.name} for project {DEFAULT_PROJECT}')
+
+    assign_iou(api,
+               project_id=project.id,
+               version=version,
+               generator=generator,
+               conf=conf,
+               group_source=group_source,
+               group_target=group_target)
+
 
 if __name__ == '__main__':
     try:
