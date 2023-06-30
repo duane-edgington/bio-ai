@@ -4,7 +4,7 @@ import click as click
 from pathlib import Path
 
 from bio import __version__
-from bio.db.tator import init_api, download_data, find_project, assign_cluster, delete_cluster, assign_iou
+from bio.db.tator import init_api, download_data, find_project, assign_cluster, delete_cluster, assign_iou, classify
 from bio.logger import create_logger_file, info, err
 
 # Default values
@@ -126,6 +126,25 @@ def iou(group_source: str, group_target: str, version: str, conf: float):
                conf=conf,
                group_source=group_source,
                group_target=group_target)
+
+
+@cli.command(name="classify", help='Classify concepts in localizations')
+@click.option('--base-dir', default=DEFAULT_BASE_DIR, help='Base directory to save all data to.')
+@click.option('--group', help='Group name, e.g. VB250')
+@click.option('--version', default=DEFAULT_VERSION, help=f'Dataset version to assign. Defaults to {DEFAULT_VERSION}.')
+@click.option('--generator', default='vars-labelbot', help='Generator name, e.g. vars-labelbot or vars-annotation')
+@click.option('--model-url',  help='Url of the model to use for classification.')
+def assign(group: str, version: str, generator: str, model_url: str, base_dir:str):
+    create_logger_file(Path.cwd(), 'classify')
+
+    # Connect to the database api
+    api = init_api()
+
+    # Find the project
+    project = find_project(api, DEFAULT_PROJECT)
+    info(f'Found project id: {project.name} for project {DEFAULT_PROJECT}')
+
+    classify(api, project_id=project.id, version=version, generator=generator, group=group, model_url=model_url, output_path=Path(base_dir))
 
 
 if __name__ == '__main__':

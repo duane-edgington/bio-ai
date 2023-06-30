@@ -2,8 +2,8 @@
 
 # About
 
-*biodiversity-model-trainer*  a command line tool for downloading and training machine learning models for 
-the MBARI biodiversity project.
+*biodiversity-model-trainer*  a command line tool for developing machine learning models for 
+the MBARI BioDiversity project.
 
 ## Installation 
 
@@ -28,7 +28,7 @@ Setup a .env file with the following contents:
 
 ```ini
 TATOR_API_HOST=http://DiGiTS-Dev-Box-Fish.shore.mbari.org
-TATOR_API_TOKEN=15afoobaryourmediatoken
+TATOR_API_TOKEN=15afoobaryouraccesstoken
 ```
 
 ## Data Download
