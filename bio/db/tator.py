@@ -393,7 +393,7 @@ def classify(api: tator.api, project_id: int, group: str, version: str, generato
         info(f'No localizations to classify found in project {project_id} with filter {attribute_filter}')
         return
 
-    print(f'Found {num_records} localizations to classify')
+    info(f'Found {num_records} localizations to classify')
 
     # Grab all localizations for the media ids that are 'Unknown', 500 at a time
     localizations = []
