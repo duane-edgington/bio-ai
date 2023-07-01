@@ -312,7 +312,7 @@ def predict_classify_top1(temp_path: Path,
                           localization: List[tator.models.Localization]):
     """
     Predict using a classification model
-    :param temp_path: path to the temp directory to store any localizations to update in the database
+    :param temp_path: path to the temp directory to store any localizations to later update in the database
     :param classification_model: classification model object
     :param media_path: path to the media file
     :param localization:  Tator localization object
@@ -333,24 +333,24 @@ def predict_classify_top1(temp_path: Path,
         byte_io.seek(0)
         # Classify the crops
         threshold = 0.3
-        predictions = classification_model.predict_bytes(byte_io, top_n=1, threshold=threshold)
+        predictions = classification_model.predict_bytes(byte_io, top_n=5, threshold=threshold)
         if len(predictions) == 0:
             info(f'No predictions for localization {loc.id} > {threshold}')
             continue
-        # Get the top prediction
-        top_prediction = predictions[0]
-        # TODO: load the top prediction to the localization by id
-        if top_prediction['class'] == loc.attributes['concept']:
-            # Pickle the localization to a file to load later
-            # Save the localization to a file
-            # Update the localization and score
-            loc.attributes['Label'] = top_prediction['class']
-            loc.attributes['concept'] = top_prediction['class']
-            # loc.attributes['score'] = top_prediction['score']
-            loc.version = None
-            temp_path = temp_path / f'{loc.id}.pkl'
-            with temp_path.open('wb') as f:
-                pickle.dump(loc, f)
+        # Active learning; keep the top prediction if there is not a lot of confusion in the top 3
+        if len(predictions) > 1: 
+            if predictions[0]['score'] - predictions[1]['score'] < 0.3:
+                warn(f'Confusion in top 2 predictions for localization {loc.id}')
+                continue
+        if len(predictions) > 2:
+            if predictions[1]['score'] - predictions[2]['score'] < 0.3:
+                warn(f'Confusion in top 3 predictions for localization {loc.id}')
+                continue
+
+        results = {'prediction': predictions[0], 'localization': loc}
+        temp_path = temp_path / f'{loc.id}.pkl'
+        with temp_path.open('wb') as f:
+            pickle.dump(results, f)
 
 def classify(api: tator.api, project_id: int, group: str, version: str, generator: str, output_path: Path,
                     model_url: str):
@@ -368,14 +368,14 @@ def classify(api: tator.api, project_id: int, group: str, version: str, generato
 
     classification_model = KClassify(model_url)
 
-    # Test the model
-    # Get the directory of this file
     info(f'Testing model {model_url}')
     test_image = f'{Path(__file__).parent.parent.absolute()}/tests/data/goldfish.jpg'
     results = classification_model.predict_file(test_image, top_n=1, threshold=0.0)
     if len(results) == 0:
         err('Model did not return any predictions')
         exit(-1)
+
+    info('Model OK')
 
     if generator:
         attribute_filter = [f"generator::{generator}"]
@@ -384,7 +384,7 @@ def classify(api: tator.api, project_id: int, group: str, version: str, generato
     if version:
         attribute_filter += [f"version::{version}"]
 
-    attribute_filter += ['concept::Pyrosoma']
+    attribute_filter += ['Label::Unknown']
 
     num_records = api.get_localization_count(project=project_id,
                                              attribute=attribute_filter)
@@ -408,7 +408,6 @@ def classify(api: tator.api, project_id: int, group: str, version: str, generato
             break
 
         localizations = localizations + new_localizations
-        break
 
     info(f'Found {len(localizations)} localizations to classify')
 
@@ -430,7 +429,6 @@ def classify(api: tator.api, project_id: int, group: str, version: str, generato
             if not media_path.exists():
                 info(f'Media {media_path} not found.')
                 continue
-                # exit(-1)
 
             media_to_localizations[media_path.as_posix()] = []
         media_to_localizations[media_path.as_posix()].append(loc)
@@ -443,30 +441,39 @@ def classify(api: tator.api, project_id: int, group: str, version: str, generato
     # For each media id, run the classification model in parallel with model.predict
     info('Running classification model')
 
-    # Single thread example for testing
-    # for media_path, localizations in media_to_localizations.items():
-    #     predict_classify_top1(classification_model, media_path, localizations)
-
     # Create a multiprocessing pool
     num_processes = multiprocessing.cpu_count()
 
     # if the number of me is less than the number of processes, use the number of media as the number of processes
     if len(media_to_localizations) < num_processes:
-        num_processes = len(len(media_to_localizations))
+        num_processes = len(media_to_localizations)
 
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_path = Path(temp_dir)
-        with multiprocessing.Pool(num_processes) as pool:
+        # Single thread example for testing
+        for media_path, localizations in media_to_localizations.items():
+             predict_classify_top1(temp_path, classification_model, media_path, localizations)
+
+        '''with multiprocessing.Pool(num_processes) as pool:
             a = [(temp_path, classification_model, media_path, localizations) for media_path, localizations in media_to_localizations.items()]
-            pool.starmap(predict_classify_top1, a)
+            pool.starmap(predict_classify_top1, a)'''
 
         info('Writing localizations back to the server')
         for l in temp_path.glob('*.pkl'):
             with l.open('rb') as f:
-                loc = pickle.load(f)
-                info(f'Loading localization id {loc.id} {loc.attributes["concept"]} {loc.attributes["score"]}')
-                # Update the localization
-                api.update_localization(loc.id, loc)
+                results = pickle.load(f)
+                loc = results['localization']
+                pred = results['prediction']
+                if pred["score"] > 0.99 and pred['class'] != 'Poeobius meseres':
+                    loc.attributes['Label'] = pred['class']
+                    loc.attributes['concept'] = pred['class']
+                    loc.attributes['score'] = pred['score']
+                    loc.version = None
+
+                    # Update the localization
+                    info(loc)
+                    info(f'Loading localization id {loc.id} {loc.attributes["concept"]} {loc.attributes["score"]}')
+                    api.update_localization(loc.id, loc)
 
 
 def assign_cluster(api: tator.api, project_id: int, group: str, version: str, generator: str,
