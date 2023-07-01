@@ -395,85 +395,77 @@ def classify(api: tator.api, project_id: int, group: str, version: str, generato
 
     info(f'Found {num_records} localizations to classify')
 
-    # Grab all localizations for the media ids that are 'Unknown', 500 at a time
-    localizations = []
+    # Grab all localizations for the media ids that are 'Unknown', 500 at a time, classify and load them
     inc = min(500, num_records)
     for start in range(0, num_records, inc):
         info(f'Query records {start} to {start + 500}')
-        new_localizations = api.get_localization_list(project=project_id,
+        localizations = api.get_localization_list(project=project_id,
                                                       attribute=attribute_filter,
                                                       start=start,
                                                       stop=start + 500)
-        if len(new_localizations) == 0:
+        if len(localizations) == 0:
             break
 
-        localizations = localizations + new_localizations
+        info(f'Found {len(localizations)} localizations to classify')
 
-    info(f'Found {len(localizations)} localizations to classify')
+        # Create a dictionary of media ids to localizations
+        media_to_localizations = {}
+        for loc in localizations:
+            if loc.media not in media_to_localizations:
+                # Get the media object using the media name
+                media = api.get_media(loc.media)
 
-    # If there are no localizations to classify, exit
-    if len(localizations) == 0:
-        info('No localizations to classify')
-        return
+                # Check if the media is downloaded to the output path
+                media_path = output_path / version / 'images' / media.name
 
-    # Create a dictionary of media ids to localizations
-    media_to_localizations = {}
-    for loc in localizations:
-        if loc.media not in media_to_localizations:
-            # Get the media object using the media name
-            media = api.get_media(loc.media)
+                if not media_path.exists():
+                    info(f'Media {media_path} not found.')
+                    continue
 
-            # Check if the media is downloaded to the output path
-            media_path = output_path / version / 'images' / media.name
+                media_to_localizations[media_path.as_posix()] = []
+            media_to_localizations[media_path.as_posix()].append(loc)
 
-            if not media_path.exists():
-                info(f'Media {media_path} not found.')
-                continue
+        # If no media is found, exit
+        if len(media_to_localizations) == 0:
+            info('No media found')
+            return
 
-            media_to_localizations[media_path.as_posix()] = []
-        media_to_localizations[media_path.as_posix()].append(loc)
+        # For each media id, run the classification model in parallel with model.predict
+        info('Running classification model')
 
-    # If no media is found, exit
-    if len(media_to_localizations) == 0:
-        info('No media found')
-        return
+        # Create a multiprocessing pool
+        num_processes = multiprocessing.cpu_count()
 
-    # For each media id, run the classification model in parallel with model.predict
-    info('Running classification model')
+        # if the number of me is less than the number of processes, use the number of media as the number of processes
+        if len(media_to_localizations) < num_processes:
+            num_processes = len(media_to_localizations)
 
-    # Create a multiprocessing pool
-    num_processes = multiprocessing.cpu_count()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            # Single thread example for testing
+            for media_path, localizations in media_to_localizations.items():
+                 predict_classify_top1(temp_path, classification_model, media_path, localizations)
 
-    # if the number of me is less than the number of processes, use the number of media as the number of processes
-    if len(media_to_localizations) < num_processes:
-        num_processes = len(media_to_localizations)
+            '''with multiprocessing.Pool(num_processes) as pool:
+                a = [(temp_path, classification_model, media_path, localizations) for media_path, localizations in media_to_localizations.items()]
+                pool.starmap(predict_classify_top1, a)'''
 
-    with tempfile.TemporaryDirectory() as temp_dir:
-        temp_path = Path(temp_dir)
-        # Single thread example for testing
-        for media_path, localizations in media_to_localizations.items():
-             predict_classify_top1(temp_path, classification_model, media_path, localizations)
+            info('Writing localizations back to the server')
+            for l in temp_path.glob('*.pkl'):
+                with l.open('rb') as f:
+                    results = pickle.load(f)
+                    loc = results['localization']
+                    pred = results['prediction']
+                    if pred["score"] > 0.99 and pred['class'] != 'Poeobius meseres':
+                        loc.attributes['Label'] = pred['class']
+                        loc.attributes['concept'] = pred['class']
+                        loc.attributes['score'] = pred['score']
+                        loc.version = None
 
-        '''with multiprocessing.Pool(num_processes) as pool:
-            a = [(temp_path, classification_model, media_path, localizations) for media_path, localizations in media_to_localizations.items()]
-            pool.starmap(predict_classify_top1, a)'''
-
-        info('Writing localizations back to the server')
-        for l in temp_path.glob('*.pkl'):
-            with l.open('rb') as f:
-                results = pickle.load(f)
-                loc = results['localization']
-                pred = results['prediction']
-                if pred["score"] > 0.99 and pred['class'] != 'Poeobius meseres':
-                    loc.attributes['Label'] = pred['class']
-                    loc.attributes['concept'] = pred['class']
-                    loc.attributes['score'] = pred['score']
-                    loc.version = None
-
-                    # Update the localization
-                    info(loc)
-                    info(f'Loading localization id {loc.id} {loc.attributes["concept"]} {loc.attributes["score"]}')
-                    api.update_localization(loc.id, loc)
+                        # Update the localization
+                        info(loc)
+                        info(f'Loading localization id {loc.id} {loc.attributes["concept"]} {loc.attributes["score"]}')
+                        api.update_localization(loc.id, loc)
 
 
 def assign_cluster(api: tator.api, project_id: int, group: str, version: str, generator: str,
