@@ -232,6 +232,9 @@ def download_data(api: tator.api, project_id: int, group: str, version: str, gen
                                                               attribute=attribute_filter,
                                                               start=start,
                                                               stop=start + 500)
+
+                # Remove localizations that have a conceppt of 'Unknown' or 'Revisit'
+                new_localizations = [l for l in new_localizations if l.attributes['concept'] not in ['Unknown', 'Revisit']]
             if len(new_localizations) == 0:
                 break
 
@@ -346,7 +349,7 @@ def assign_cluster(api: tator.api, project_id: int, group: str, version: str, ge
 
 
 def delete_cluster(api: tator.api, project_id: int, group: str, version: str, generator: str,
-                   clusters: []):
+                   clusters: [], dry_run: bool = False):
     """
     Delete cluster(s)
     :param api: tator.api
@@ -354,22 +357,32 @@ def delete_cluster(api: tator.api, project_id: int, group: str, version: str, ge
     :param group: group name
     :param version: version tag
     :param generator: generator name, e.g. 'vars-labelbot' or 'vars-annotation'
-    :param clusters: list of clusters to reassign,
+    :param clusters: list of clusters to delete,
+    :param dry_run: if True, do not delete the clusters
     """
     # Fetch localizations in the cluster and delete them up to 500 at a time
     for c in clusters:
-        cluster_filter = f"cluster::{c.strip()}"
+        attribute_filter = [f"cluster::{c}"]
 
         if generator:
-            attribute_filter = [f"generator::{generator}"]
+            attribute_filter += [f"generator::{generator}"]
         if group:
             attribute_filter += [f"group::{group}"]
         if version:
             attribute_filter += [f"version::{version}"]
 
-        attribute_filter += [cluster_filter]
         num_records = api.get_localization_count(project=project_id,
                                                  attribute=attribute_filter)
+
+        info(f'Found {num_records} localizations in cluster {c} to delete in generator {generator} group {group} version {version}')
+
+        if num_records == 0:
+            continue
+
+        if dry_run:
+            info(f'Dry run, not deleting {num_records} localizations')
+            continue
+
         inc = min(500, num_records)
         for start in range(0, num_records, inc):
             info(f'Query records {start} to {start + 500}')
@@ -382,6 +395,54 @@ def delete_cluster(api: tator.api, project_id: int, group: str, version: str, ge
                     info(f'Deleting localization {l.id}')
                     api.delete_localization(l.id)
 
+
+def delete_concept(api: tator.api, project_id: int, group: str, version: str, generator: str,
+                   concepts: str, dry_run: bool = False):
+    """
+    Delete concept
+    :param api: tator.api
+    :param project_id: project id
+    :param group: group name
+    :param version: version tag
+    :param generator: generator name, e.g. 'vars-labelbot' or 'vars-annotation'
+    :param concepts: list of concepts to delete
+    :param dry_run: if True, do not delete, just print
+    """
+
+    # Fetch localizations in the cluster and delete them up to 500 at a time
+    for c in concepts:
+        attribute_filter = [f"concept::{c}"]
+
+        if generator:
+            attribute_filter += [f"generator::{generator}"]
+        if group:
+            attribute_filter += [f"group::{group}"]
+        if version:
+            attribute_filter += [f"version::{version}"]
+
+        num_records = api.get_localization_count(project=project_id,
+                                                 attribute=attribute_filter)
+
+        info(f'Found {num_records} localizations to delete with concept {c} in generator {generator} group {group} version {version}')
+
+        if num_records == 0:
+            continue
+
+        if dry_run:
+            info(f'Dry run, not deleting {num_records} localizations')
+            continue
+
+        inc = min(500, num_records)
+        for start in range(0, num_records, inc):
+            info(f'Query records {start} to {start + 500}')
+            localizations = api.get_localization_list(project=project_id,
+                                                      attribute=attribute_filter,
+                                                      start=start,
+                                                      stop=start + 500)
+            if localizations:
+                for l in localizations:
+                    info(f'Deleting localization {l.id}')
+                    api.delete_localization(l.id)
 
 def assign_iou(api: tator.api,
                project_id: int,
