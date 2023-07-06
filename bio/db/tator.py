@@ -5,9 +5,9 @@ from pathlib import Path
 from PIL import Image
 import numpy as np
 import tator
-import tensorflow as tf
 import itertools
-
+import torch
+from torchvision.ops import nms
 from bio.logger import info, debug, err, exception, warn
 
 
@@ -234,7 +234,8 @@ def download_data(api: tator.api, project_id: int, group: str, version: str, gen
                                                               stop=start + 500)
 
                 # Remove localizations that have a conceppt of 'Unknown' or 'Revisit'
-                new_localizations = [l for l in new_localizations if l.attributes['concept'] not in ['Unknown', 'Revisit']]
+                new_localizations = [l for l in new_localizations if
+                                     l.attributes['concept'] not in ['Unknown', 'Revisit']]
             if len(new_localizations) == 0:
                 break
 
@@ -307,7 +308,7 @@ def download_data(api: tator.api, project_id: int, group: str, version: str, gen
 
 
 def assign_cluster(api: tator.api, project_id: int, group: str, version: str, generator: str,
-                   clusters: [], concept: str):
+                   clusters: [], concept: str, label: str):
     """
     Assign a cluster a new concept
     :param api: tator.api
@@ -317,8 +318,15 @@ def assign_cluster(api: tator.api, project_id: int, group: str, version: str, ge
     :param generator: generator name, e.g. 'vars-labelbot' or 'vars-annotation'
     :param clusters: list of clusters to reassign,
     :param concept: concept to assign to the cluster
+    :param label: label to assign to the cluster
     """
+    # Require either a concept or a label
+    if not concept and not label:
+        exception('Must provide either a concept or a label')
+        exit(-1)
+
     # Fetch localizations in the cluster and update them up to 500 at a time
+    num_assigned = 0
     for c in clusters:
         cluster_filter = f"cluster::{c.strip()}"
 
@@ -341,11 +349,16 @@ def assign_cluster(api: tator.api, project_id: int, group: str, version: str, ge
                                                       stop=start + 500)
             # Update the concept and Label attributes
             for l in localizations:
-                l.attributes['concept'] = concept
-                l.attributes['Label'] = concept
+                if concept:
+                    l.attributes['concept'] = concept
+                if label:
+                    l.attributes['Label'] = concept
                 l.version = None
 
                 api.update_localization(l.id, l)
+                num_assigned += 1
+
+    info(f'Assigned {num_assigned} records to concept {concept} and label {label}')
 
 
 def delete_cluster(api: tator.api, project_id: int, group: str, version: str, generator: str,
@@ -374,7 +387,8 @@ def delete_cluster(api: tator.api, project_id: int, group: str, version: str, ge
         num_records = api.get_localization_count(project=project_id,
                                                  attribute=attribute_filter)
 
-        info(f'Found {num_records} localizations in cluster {c} to delete in generator {generator} group {group} version {version}')
+        info(
+            f'Found {num_records} localizations in cluster {c} to delete in generator {generator} group {group} version {version}')
 
         if num_records == 0:
             continue
@@ -423,7 +437,8 @@ def delete_concept(api: tator.api, project_id: int, group: str, version: str, ge
         num_records = api.get_localization_count(project=project_id,
                                                  attribute=attribute_filter)
 
-        info(f'Found {num_records} localizations to delete with concept {c} in generator {generator} group {group} version {version}')
+        info(
+            f'Found {num_records} localizations to delete with concept {c} in generator {generator} group {group} version {version}')
 
         if num_records == 0:
             continue
@@ -432,6 +447,7 @@ def delete_concept(api: tator.api, project_id: int, group: str, version: str, ge
             info(f'Dry run, not deleting {num_records} localizations')
             continue
 
+        num_deleted = 0
         inc = min(500, num_records)
         for start in range(0, num_records, inc):
             info(f'Query records {start} to {start + 500}')
@@ -441,8 +457,14 @@ def delete_concept(api: tator.api, project_id: int, group: str, version: str, ge
                                                       stop=start + 500)
             if localizations:
                 for l in localizations:
-                    info(f'Deleting localization {l.id}')
-                    api.delete_localization(l.id)
+                    info(l.attributes['score'])
+                    if l.attributes['score'] < .08:
+                        info(f'Deleting localization {l.id}')
+                        num_deleted += 1
+                        api.delete_localization(l.id)
+
+        info(f'Deleted {num_deleted} localizations')
+
 
 def assign_iou(api: tator.api,
                project_id: int,
@@ -576,3 +598,147 @@ def assign_iou(api: tator.api,
 
                 target_localizations.remove(max_iou_target)
                 source_by_media[r.media] = target_localizations
+
+
+def assign_nms(api: tator.api,
+                project_id: int,
+                group: str,
+                version: str):
+    """
+    Assign the best concepts in all groups for any image to the new group using nms. Exclude those Labeled as Unknown
+    :param api: tator.api
+    :param project_id: project id
+    :param group: group name to assign boxes output from nms to
+    :param version: version tag
+    """
+
+    # Get the localization type
+    localization_types = api.get_localization_type_list(project_id)
+
+    # the box type is the one with the name 'Boxes'
+    box_type = None
+    for l in localization_types:
+        if l.name == 'Boxes':
+            box_type = l.id
+            break
+
+    # Fail if we could not find the box type
+    if box_type is None:
+        err(f'Could not find localization type "Boxes"')
+        return
+
+    if version:
+        attribute_filter = [f"version::{version}"]
+        num_records = api.get_localization_count(project=project_id, attribute=attribute_filter)
+    else:
+        num_records = api.get_localization_count(project=project_id)
+
+    # Fetch localizations up to 500 at a time based on the attribute filter
+    inc = min(500, num_records)
+    records = []
+    for start in range(0, num_records, inc):
+        info(f'Query records {start} to {start + 500}')
+        r = api.get_localization_list(project=project_id,
+                                      start=start,
+                                      stop=start + 500)
+        records += r
+
+    # Create a dictionary of target localizations by media id
+    by_media = {}
+    for r in records:
+        # Skip over any Unknown or low confidence localizations
+        if r.attributes['Label'] != 'Unknown' \
+                or r.attributes['concept'] != 'Unknown' \
+                or r.attributes['Label'] != 'Revisit' \
+                or r.attributes['concept'] != 'Revisit' \
+                or r.attributes['score'] < 0.3:
+            if r.media not in by_media:
+                by_media[r.media] = []
+            by_media[r.media].append(r)
+
+    # Iterate over the dictionay of localizations by media
+    # For each media, run NMS on the frame
+    for media, localizations in by_media.items():
+
+        # Run NMS
+        def non_max_suppression(scores, boxes, concepts, labels, iou_threshold):
+            selected_indices = nms(boxes, scores, iou_threshold)
+            selected_boxes = boxes[selected_indices]
+            selected_scores = scores[selected_indices]
+            # Convert tensor indices to list indices
+            indices_list = selected_indices.tolist()
+            selected_concepts = [concepts[j] for j in indices_list]
+            selected_labels = [labels[j] for j in indices_list]
+            return selected_boxes, selected_scores, selected_concepts, selected_labels
+
+        # Create a tensor of scores and boxes
+        scores = torch.tensor([l.attributes['score'] for l in localizations])
+        boxes = torch.tensor([[l.x, l.y, l.width, l.height] for l in localizations], dtype=torch.float32)
+        labels = [l.attributes['Label'] for l in localizations]
+        concepts = [l.attributes['concept'] for l in localizations]
+        iou_threshold = 0.5
+
+        selected_boxes, selected_scores, selected_concepts, selected_labels = non_max_suppression(scores, boxes,
+                                                                                                  concepts, labels,
+                                                                                                  iou_threshold)
+
+        info("Selected Scores:")
+        info(selected_scores)
+        # Convert scores from tensor to list
+        selected_scores = selected_scores.tolist()
+        info("Selected Labels:")
+        info(selected_scores)
+        info("Selected Concepts:")
+        info(selected_concepts)
+        info("Selected Boxes:")
+        info(selected_boxes)
+
+        # Create a list of boxes for the API using the selected boxes, scores, and classes
+        boxes = []
+        for box, score, label, concept in zip(selected_boxes, selected_scores, selected_labels, selected_concepts):
+            box = box.tolist()
+            new_box = gen_box_localization(box_type, box, score, media, project_id, concept, group)
+            boxes.append(new_box)
+
+        # Create the localizations 200 at a time
+        for b in range(0, len(boxes), 200):
+            info(f'Creating {len(boxes[b:b + 200])} localizations for media {media} to group {group}...')
+            print(boxes[b:b + 200])
+            response = api.create_localization_list(project_id, boxes[b:b + 200])
+            debug(response)
+
+
+def gen_box_localization(box_type: int, box: [float], score: float, media_id: int, project_id: int, concept: str, group: str):
+    """
+    Generate a localization spec for a box
+    Args:
+        box_type: The localization type ID for the box type
+        box:  [x, y, w, h]
+        score: score of the localization
+        media_id: The Tator media ID.
+        project_id: The Tator project ID.
+        concept: Concept to assign boxes output to
+        group: group name to assign boxes output to
+
+    Returns:
+
+    """
+    attributes = {
+        'concept': concept,
+        'Label': concept,
+        'score': score,
+        'group': group,
+    }
+
+    out = {
+        'type': box_type,
+        'media_id': media_id,
+        'project': project_id,
+        'x': box[0],
+        'y': box[1],
+        'width': box[2],
+        'height': box[3],
+        'frame': 0,
+        'attributes': attributes
+    }
+    return {**out}

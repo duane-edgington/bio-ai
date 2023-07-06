@@ -5,4 +5,5 @@ click~=8.1.3
 deepsea-ai
 numpy~=1.24.3
 pillow~=9.5.0
-tensorflow
+torch
+torchvision

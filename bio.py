@@ -4,7 +4,8 @@ import click as click
 from pathlib import Path
 
 from bio import __version__
-from bio.db.tator import init_api, download_data, find_project, assign_cluster, delete_cluster, delete_concept, assign_iou
+from bio.db.tator import init_api, download_data, find_project, assign_cluster, delete_cluster, delete_concept, \
+    assign_iou, assign_nms
 from bio.logger import create_logger_file, info, err
 
 # Default values
@@ -61,13 +62,14 @@ def download(base_dir: str, group: str, version: str, generator: str, concepts: 
     download_data(api, project.id, group, version, generator, data_path, concept_list, cifar)
 
 
-@cli.command(name="assign", help='Assign concepts to clusters')
+@cli.command(name="assign", help='Assign concepts and/or labels to clusters')
 @click.option('--group', help='Group name, e.g. VB250')
 @click.option('--version', default=DEFAULT_VERSION, help=f'Dataset version to assign. Defaults to {DEFAULT_VERSION}.')
 @click.option('--generator', default='vars-labelbot', help='Generator name, e.g. vars-labelbot or vars-annotation')
 @click.option('--clusters', default='all', help='Comma separated list of clusters to assign.')
 @click.option('--concept', type=str, help='Concept to assign')
-def assign(group: str, version: str, generator: str, clusters: str, concept: str):
+@click.option('--label', type=str, help='Label to assign')
+def assign(group: str, version: str, generator: str, clusters: str, concept: str, label: str):
     create_logger_file(Path.cwd(), 'assign')
 
     # Connect to the database api
@@ -80,17 +82,33 @@ def assign(group: str, version: str, generator: str, clusters: str, concept: str
     # Find all localizations with the given generator and group and cluster
     cluster_list = clusters.split(',')
     assign_cluster(api, project_id=project.id, version=version, generator=generator, group=group, clusters=cluster_list,
-                   concept=concept)
+                   concept=concept, label=label)
+
+
+@cli.command(name="assignnms", help='Assign concepts and labels using combined models using NMS')
+@click.option('--group', help='New group name, e.g. VB250')
+@click.option('--version', default=DEFAULT_VERSION, help=f'Dataset version to assign. Defaults to {DEFAULT_VERSION}.')
+def assign(group: str, version: str):
+    create_logger_file(Path.cwd(), 'assignnms')
+
+    # Connect to the database api
+    api = init_api()
+
+    # Find the project
+    project = find_project(api, DEFAULT_PROJECT)
+    info(f'Found project id: {project.name} for project {DEFAULT_PROJECT}')
+
+    assign_nms(api, project_id=project.id, version=version, group=group)
 
 
 @cli.command(name="delete", help='Delete clusters or concepts')
 @click.option('--group', help='Group name, e.g. VB250')
-@click.option('--version',  help=f'Dataset version to assign. Defaults to {DEFAULT_VERSION}.')
+@click.option('--version', help=f'Dataset version to assign. Defaults to {DEFAULT_VERSION}.')
 @click.option('--generator', help='Generator name, e.g. vars-labelbot or vars-annotation')
 @click.option('--clusters', help='Comma separated list of clusters to delete.')
 @click.option('--concepts', type=str, help='Comma separated list of Concepts to delete')
 @click.option('--dry-run', is_flag=True, help='Dry run, do not delete')
-def assign(group: str, version: str, generator: str, clusters: str, concepts: str, dry_run: bool):
+def delete(group: str, version: str, generator: str, clusters: str, concepts: str, dry_run: bool):
     create_logger_file(Path.cwd(), 'delete')
 
     # Connect to the database api
@@ -102,10 +120,13 @@ def assign(group: str, version: str, generator: str, clusters: str, concepts: st
 
     if clusters:
         cluster_list = clusters.split(',')
-        delete_cluster(api, project_id=project.id, version=version, generator=generator, group=group, clusters=cluster_list, dry_run=dry_run)
+        delete_cluster(api, project_id=project.id, version=version, generator=generator, group=group,
+                       clusters=cluster_list, dry_run=dry_run)
     if concepts:
         concept_list = concepts.split(',')
-        delete_concept(api, project_id=project.id, version=version, generator=generator, group=group, concepts=concept_list, dry_run=dry_run)
+        delete_concept(api, project_id=project.id, version=version, generator=generator, group=group,
+                       concepts=concept_list, dry_run=dry_run)
+
 
 @cli.command(name="iou", help='Assign from iou from one group/generator to another')
 @click.option('--group-source', help='Group name, e.g. YOLOv5-MIDWATER102')
