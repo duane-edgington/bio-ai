@@ -1,10 +1,11 @@
 import time
 
+from dotenv import load_dotenv
 import click as click
 from pathlib import Path
 
 from bio import __version__
-from bio.db.tator import init_api, download_data, find_project, assign_cluster, delete_cluster, delete_concept, \
+from bio.db.tator import init_api, download_data, find_project, assign_cluster, delete, \
     assign_iou, assign_nms
 from bio.logger import create_logger_file, info, err
 
@@ -14,7 +15,6 @@ DEFAULT_BASE_DIR = Path(__file__).parent.as_posix()
 
 DEFAULT_VERSION = 'Baseline'
 DEFAULT_PROJECT = '901103-biodiversity'
-
 
 @click.group(context_settings={'help_option_names': ['-h', '--help']})
 @click.version_option(
@@ -85,30 +85,39 @@ def assign(group: str, version: str, generator: str, clusters: str, concept: str
                    concept=concept, label=label)
 
 
-@cli.command(name="assignnms", help='Assign concepts and labels using combined models using NMS')
+@cli.command(name="assign-nms", help='Assign concepts and labels using combined models using NMS')
 @click.option('--group', help='New group name, e.g. VB250')
 @click.option('--version', default=DEFAULT_VERSION, help=f'Dataset version to assign. Defaults to {DEFAULT_VERSION}.')
-def assign(group: str, version: str):
-    create_logger_file(Path.cwd(), 'assignnms')
+@click.option('--exclude', type=str, help='(Optional) comma separated list of concepts to exclude.')
+@click.option('--include', type=str, help='(Optional) comma separated list of concepts to include.')
+@click.option('--dry-run', is_flag=True, help='Dry run, do not delete')
+def assign_nms(group: str, version: str, exclude: str, include: str, dry_run: bool):
+    create_logger_file(Path.cwd(), 'assign-nms')
 
     # Connect to the database api
     api = init_api()
 
     # Find the project
     project = find_project(api, DEFAULT_PROJECT)
-    info(f'Found project id: {project.name} for project {DEFAULT_PROJECT}')
+    info(f'Found project id: {project.name} for project {DEFAULT_PROJECT}. Excluding {exclude}')
 
-    assign_nms(api, project_id=project.id, version=version, group=group)
+    # Convert comma separated list of concepts to a list
+    if include:
+        include = include.split(',')
+    if exclude:
+        exclude = exclude.split(',')
+    assign_nms(api, project_id=project.id, version=version, group=group, exclude=exclude, include=include, dry_run=dry_run)
 
 
-@cli.command(name="delete", help='Delete clusters or concepts')
+@cli.command(name="delete", help='Delete clusters, concepts or labels')
 @click.option('--group', help='Group name, e.g. VB250')
 @click.option('--version', help=f'Dataset version to assign. Defaults to {DEFAULT_VERSION}.')
 @click.option('--generator', help='Generator name, e.g. vars-labelbot or vars-annotation')
 @click.option('--clusters', help='Comma separated list of clusters to delete.')
-@click.option('--concepts', type=str, help='Comma separated list of Concepts to delete')
+@click.option('--concepts', type=str, help='Comma separated list of concepts to delete')
+@click.option('--labels', type=str, help='Comma separated list of labels to delete')
 @click.option('--dry-run', is_flag=True, help='Dry run, do not delete')
-def delete(group: str, version: str, generator: str, clusters: str, concepts: str, dry_run: bool):
+def delete(group: str, version: str, generator: str, clusters: str, concepts: str, labels:str, dry_run: bool):
     create_logger_file(Path.cwd(), 'delete')
 
     # Connect to the database api
@@ -120,12 +129,16 @@ def delete(group: str, version: str, generator: str, clusters: str, concepts: st
 
     if clusters:
         cluster_list = clusters.split(',')
-        delete_cluster(api, project_id=project.id, version=version, generator=generator, group=group,
+        delete(api, project_id=project.id, version=version, generator=generator, group=group,
                        clusters=cluster_list, dry_run=dry_run)
     if concepts:
         concept_list = concepts.split(',')
-        delete_concept(api, project_id=project.id, version=version, generator=generator, group=group,
+        delete(api, project_id=project.id, version=version, generator=generator, group=group,
                        concepts=concept_list, dry_run=dry_run)
+    if labels:
+        label_list = labels.split(',')
+        delete(api, project_id=project.id, version=version, generator=generator, group=group,
+                       labels=label_list, dry_run=dry_run)
 
 
 @cli.command(name="iou", help='Assign from iou from one group/generator to another')
@@ -155,8 +168,6 @@ def iou(group_source: str, group_target: str, version: str, conf: float):
 
 if __name__ == '__main__':
     try:
-        from dotenv import load_dotenv
-
         load_dotenv('.env')
         start_time = time.time()
         cli()
