@@ -117,7 +117,7 @@ def assign_nms(group: str, version: str, exclude: str, include: str, dry_run: bo
 @click.option('--concepts', type=str, help='Comma separated list of concepts to delete')
 @click.option('--labels', type=str, help='Comma separated list of labels to delete')
 @click.option('--dry-run', is_flag=True, help='Dry run, do not delete')
-def delete(group: str, version: str, generator: str, clusters: str, concepts: str, labels:str, dry_run: bool):
+def delete_bulk(group: str, version: str, generator: str, clusters: str, concepts: str, labels:str, dry_run: bool):
     create_logger_file(Path.cwd(), 'delete')
 
     # Connect to the database api
@@ -139,6 +139,10 @@ def delete(group: str, version: str, generator: str, clusters: str, concepts: st
         label_list = labels.split(',')
         delete(api, project_id=project.id, version=version, generator=generator, group=group,
                        labels=label_list, dry_run=dry_run)
+
+    # if deleting everything, then delete the group
+    if not clusters and not concepts and not labels:
+        delete(api, project_id=project.id, version=version, generator=generator, group=group, dry_run=dry_run)
 
 
 @cli.command(name="iou", help='Assign from iou from one group/generator to another')

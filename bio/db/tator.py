@@ -293,9 +293,9 @@ def delete(api: tator.api,
            group: str,
            version: str,
            generator: str,
-           concepts: [],
-           labels: [],
-           clusters: [],
+           concepts=None,
+           labels=None,
+           clusters=None,
            dry_run: bool = False):
     """
     Delete by attribute generator, group, version, concept, Label and/or cluster
@@ -310,7 +310,7 @@ def delete(api: tator.api,
     :param dry_run: if True, do not delete, just print
     """
 
-    # Fetch localizations in the cluster and delete them up to 500 at a time
+    attribute_filter = []
     if concepts:
         attribute_filter = [f"concept::{concept.strip()}" for concept in concepts]
     if clusters:
@@ -338,13 +338,13 @@ def delete(api: tator.api,
         return
 
     num_deleted = 0
-    inc = min(500, num_records)
+    inc = min(1000, num_records)
     for start in range(0, num_records, inc):
-        info(f'Query records {start} to {start + 100}')
+        info(f'Query records {start} to {start + 1000}')
         localizations = api.get_localization_list(project=project_id,
                                                   attribute=attribute_filter,
                                                   start=start,
-                                                  stop=start + 100)
+                                                  stop=start + 1000)
 
         info(f'Deleting {len(localizations)} localizations ...')
         if localizations:
@@ -353,8 +353,8 @@ def delete(api: tator.api,
                 api.delete_localization(l.id)
 
         # Wait a bit to avoid rate limiting
-        info(f'Waiting 5 seconds to avoid rate limiting')
-        time.sleep(5)
+        info(f'Waiting 10 seconds to avoid rate limiting')
+        time.sleep(10)
 
     info(f'Deleted {num_deleted} localizations')
 
