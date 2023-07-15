@@ -91,7 +91,7 @@ def assign(group: str, version: str, generator: str, clusters: str, concept: str
 @click.option('--exclude', type=str, help='(Optional) comma separated list of concepts to exclude.')
 @click.option('--include', type=str, help='(Optional) comma separated list of concepts to include.')
 @click.option('--dry-run', is_flag=True, help='Dry run, do not delete')
-def assign_nms(group: str, version: str, exclude: str, include: str, dry_run: bool):
+def assign(group: str, version: str, exclude: str, include: str, dry_run: bool):
     create_logger_file(Path.cwd(), 'assign-nms')
 
     # Connect to the database api

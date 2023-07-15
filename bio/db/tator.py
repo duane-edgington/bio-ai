@@ -180,8 +180,8 @@ def download_data(api: tator.api,
         # Get all the unique Label attributes and sort them alphabetically
         labels = list(sorted(set([l.attributes['Label'] for l in localizations])))
 
-        # Write the labels to a file called label-map.txt
-        with (output_path / 'label-map.txt').open('w') as f:
+        # Write the labels to a file called labels.txt
+        with (output_path / 'labels.txt').open('w') as f:
             for label in labels:
                 f.write(f'{label}\n')
 
