@@ -53,7 +53,6 @@ Download data format is saved to a directory with the following structure e.g. f
 │   │   │   └── image2.txt
 labels.txt 
 ```
- 
 Once data is downloaded, split the data and continue to the [training command](https://docs.mbari.org/deepsea-ai/commands/train/). This requires setting up the AWS account.
 This should be done by an AWS administrator if you are not already setup.
 
@@ -69,9 +68,31 @@ This should be done by an AWS administrator if you are not already setup.
 | --cifar| Download data in the CIFAR format.  The default is to download data in the format to train a YOLO object detection model |
 | --group| The name of the group to download data for.  The default is to download data for all groups.                             |
 
+### PASCAL VOC data format
+
+If you want to download data also in the PASCAL VOC format, use the optional --voc flag, e.g.
+
+```shell
+python bio.py download --generator vars-labelbot --version Baseline --concepts "Krill molt, Eusergestes similis" --voc
+```
+
+Download data format is saved to a directory with the following structure e.g. for the Baseline version:
+```
+── Baseline
+│   │   ├── images
+│   │   │   └── image1.jpg
+│   │   │   └── image2.jpg
+│   │   ├── labels
+│   │   │   └── image1.txt
+│   │   │   └── image1.xml
+│   │   │   └── image2.txt
+│   │   │   └── image2.xml
+labels.txt 
+```
+ 
 ### CIFAR data format
 
-Use the optional --cifar flag to download data in the[ [CIFAR](https://www.cs.toronto.edu/~kriz/cifar.html) format, e.g.
+Use the optional --cifar flag to download data in the [CIFAR](https://www.cs.toronto.edu/~kriz/cifar.html) format, e.g.
 
 The CIFAR data is saved in a npy file with the following structure, e.g. for the data version Baseline:
 ```shell 

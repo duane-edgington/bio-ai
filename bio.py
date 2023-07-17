@@ -35,8 +35,9 @@ def cli():
 @click.option('--version', default=DEFAULT_VERSION, help=f'Dataset version to download. Defaults to {DEFAULT_VERSION}.')
 @click.option('--generator', help='Generator name, e.g. vars-labelbot or vars-annotation')
 @click.option('--concepts', default='all', help='Comma separated list of concepts to download.')
-@click.option('--cifar', is_flag=True, help='Comma separated list of concepts to download.')
-def download(base_dir: str, group: str, version: str, generator: str, concepts: str, cifar: bool):
+@click.option('--voc', is_flag=True, help='True if export as VOC dataset, False if not.')
+@click.option('--cifar', is_flag=True, help='True if export as CIFAR dataset, False if not.')
+def download(base_dir: str, group: str, version: str, generator: str, concepts: str, voc: bool, cifar: bool):
     create_logger_file(Path.cwd(), 'download')
     base_path = Path(base_dir)
     base_path.mkdir(exist_ok=True)
@@ -59,7 +60,7 @@ def download(base_dir: str, group: str, version: str, generator: str, concepts: 
     else:
         concept_list = concepts.split(',')
         concept_list = [l.strip() for l in concept_list]
-    download_data(api, project.id, group, version, generator, data_path, concept_list, cifar)
+    download_data(api, project.id, group, version, generator, data_path, concept_list, voc, cifar)
 
 
 @cli.command(name="assign", help='Assign concepts and/or labels to clusters')
