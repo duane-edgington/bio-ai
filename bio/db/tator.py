@@ -457,14 +457,17 @@ def classify(api: tator.api, project_id: int, group: str, version: str, generato
                     loc = results['localization']
                     pred = results['prediction']
                     if pred["score"] > 0.99 and pred['class'] != 'Poeobius meseres':
-                        loc.attributes['Label'] = pred['class']
-                        loc.attributes['concept'] = pred['class']
-                        loc.attributes['score'] = pred['score']
-                        loc.version = None
-
-                        # Update the localization
-                        info(loc)
-                        info(f'Loading localization id {loc.id} {loc.attributes["concept"]} {loc.attributes["score"]}')
+                        # Replace machine name with actual name e.g. sp. A sp__A or krill_molt to krill molt
+                        class_name = pred['class'].replace('__', '. ')
+                        class_name = class_name.replace('_', ' ') 
+                        loc.attributes['Label'] = class_name 
+                        loc.attributes['concept'] = class_name 
+                        loc.attributes['score'] = pred['score'] 
+                        loc.attributes['group'] = 'VERIFY' 
+                        loc.version = None 
+                        # Update the localization 
+                        info(loc) 
+                        info(f'Loading localization id {loc.id} {loc.attributes["concept"]} {loc.attributes["score"]}') 
                         api.update_localization(loc.id, loc)
 
 
