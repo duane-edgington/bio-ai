@@ -33,7 +33,7 @@ def cli():
 @click.option('--base-dir', default=DEFAULT_BASE_DIR, help='Base directory to save all data to.')
 @click.option('--group', help='Group name, e.g. VB250')
 @click.option('--version', default=DEFAULT_VERSION, help=f'Dataset version to download. Defaults to {DEFAULT_VERSION}.')
-@click.option('--generator', default='vars-labelbot', help='Generator name, e.g. vars-labelbot or vars-annotation')
+@click.option('--generator', help='Generator name, e.g. vars-labelbot or vars-annotation')
 @click.option('--concepts', default='all', help='Comma separated list of concepts to download.')
 @click.option('--cifar', is_flag=True, help='Comma separated list of concepts to download.')
 def download(base_dir: str, group: str, version: str, generator: str, concepts: str, cifar: bool):
@@ -65,7 +65,7 @@ def download(base_dir: str, group: str, version: str, generator: str, concepts: 
 @cli.command(name="assign", help='Assign concepts and/or labels to clusters')
 @click.option('--group', help='Group name, e.g. VB250')
 @click.option('--version', default=DEFAULT_VERSION, help=f'Dataset version to assign. Defaults to {DEFAULT_VERSION}.')
-@click.option('--generator', default='vars-labelbot', help='Generator name, e.g. vars-labelbot or vars-annotation')
+@click.option('--generator', help='Generator name, e.g. vars-labelbot or vars-annotation')
 @click.option('--clusters', default='all', help='Comma separated list of clusters to assign.')
 @click.option('--concept', type=str, help='Concept to assign')
 @click.option('--label', type=str, help='Label to assign')
@@ -176,7 +176,7 @@ def iou(group_source: str, group_target: str, version: str, conf: float):
 @click.option('--base-dir', default=DEFAULT_BASE_DIR, help='Base directory to save all data to.')
 @click.option('--group', help='Group name, e.g. VB250')
 @click.option('--version', default=DEFAULT_VERSION, help=f'Dataset version to assign. Defaults to {DEFAULT_VERSION}.')
-@click.option('--generator', default='vars-labelbot', help='Generator name, e.g. vars-labelbot or vars-annotation')
+@click.option('--generator',  help='Generator name, e.g. vars-labelbot or vars-annotation')
 @click.option('--model-url',  help='Url of the model to use for classification.')
 def assign(group: str, version: str, generator: str, model_url: str, base_dir:str):
     create_logger_file(Path.cwd(), 'classify')
