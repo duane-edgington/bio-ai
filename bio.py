@@ -90,8 +90,10 @@ def assign(group: str, version: str, generator: str, clusters: str, concept: str
 @click.option('--version', default=DEFAULT_VERSION, help=f'Dataset version to assign. Defaults to {DEFAULT_VERSION}.')
 @click.option('--exclude', type=str, help='(Optional) comma separated list of concepts to exclude.')
 @click.option('--include', type=str, help='(Optional) comma separated list of concepts to include.')
+@click.option('--min-iou', type=float, help='(Optional)  minimum iou to filter localizations between 0-1')
+@click.option('--min-score', type=float, help='(Optional)  minimum score to filter localizations between 0-1')
 @click.option('--dry-run', is_flag=True, help='Dry run, do not delete')
-def assign(group: str, version: str, exclude: str, include: str, dry_run: bool):
+def assignNMS(group: str, version: str, exclude: str, include: str, min_iou: float, min_score: float, dry_run: bool):
     create_logger_file(Path.cwd(), 'assign-nms')
 
     # Connect to the database api
@@ -106,7 +108,7 @@ def assign(group: str, version: str, exclude: str, include: str, dry_run: bool):
         include = include.split(',')
     if exclude:
         exclude = exclude.split(',')
-    assign_nms(api, project_id=project.id, version=version, group=group, exclude=exclude, include=include, dry_run=dry_run)
+    assign_nms(api, project_id=project.id, version=version, group=group, exclude=exclude, include=include, dry_run=dry_run, min_score=min_score, min_iou=min_iou)
 
 
 @cli.command(name="delete", help='Delete clusters, concepts or labels')

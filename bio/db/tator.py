@@ -337,26 +337,11 @@ def delete(api: tator.api,
         info(f'Dry run, not deleting {num_records} localizations')
         return
 
-    num_deleted = 0
-    inc = min(1000, num_records)
-    for start in range(0, num_records, inc):
-        info(f'Query records {start} to {start + 1000}')
-        localizations = api.get_localization_list(project=project_id,
-                                                  attribute=attribute_filter,
-                                                  start=start,
-                                                  stop=start + 1000)
+    info(f'Deleting {num_records} localizations ...')
+    api.delete_localization_list(project=project_id,
+                                 attribute=attribute_filter)
 
-        info(f'Deleting {len(localizations)} localizations ...')
-        if localizations:
-            for l in localizations:
-                num_deleted += 1
-                api.delete_localization(l.id)
-
-        # Wait a bit to avoid rate limiting
-        info(f'Waiting 10 seconds to avoid rate limiting')
-        time.sleep(10)
-
-    info(f'Deleted {num_deleted} localizations')
+    info(f'Deleted {num_records} localizations')
 
 
 def assign_iou(api: tator.api,
@@ -499,6 +484,8 @@ def assign_nms(api: tator.api,
                version: str,
                exclude: [],
                include: [],
+               min_iou: float = 0.5,
+               min_score: float = 0.2,
                dry_run: bool = False):
     """
     Assign the best concepts in all groups for any image to the new group using NMS.
@@ -508,6 +495,8 @@ def assign_nms(api: tator.api,
     :param exclude: (optional) list of concepts/Labels to exclude
     :param include: (optional) list of concepts/Labels to include, default to all if not specified
     :param version: version tag
+    :param min_iou: (optional) minimum iou to filter localizations
+    :param min_score: (optional) minimum score to filter localizations
     :param dry_run: (optional) if True, do not update any localizations
     """
 
@@ -536,12 +525,18 @@ def assign_nms(api: tator.api,
     if include:
         for i in include:
             attribute_filter += [f"concept::{i}"]
-            attribute_filter += [f"Label::{i}"]
+
+    # Check if any records exist with the group first, and alert the user if so
+    num_in_group = api.get_localization_count(project=project_id, attribute=[f"group::{group}"])
+    if num_in_group > 0:
+        info(f"Found {num_in_group} records in group {group}. "
+             f"Please remove them before running this script.")
+        return
 
     num_records = api.get_localization_count(project=project_id, attribute=attribute_filter)
 
     if num_records == 0:
-        info(f"No records found with version {version} and group {group} "
+        info(f"No records found with version {version} "
              f"including {include if include else 'everything'} ")
         return
 
@@ -599,7 +594,7 @@ def assign_nms(api: tator.api,
         boxes_nms += torch.rand(boxes_nms.shape) * 1e-3
         labels = [l.attributes['Label'] for l in localizations]
         concepts = [l.attributes['concept'] for l in localizations]
-        iou_threshold = 0.5
+        iou_threshold = min_iou
 
         selected_indices = nms(boxes_nms, scores, iou_threshold)
 
@@ -616,10 +611,9 @@ def assign_nms(api: tator.api,
         selected_concepts = [concepts[i] for i in selected_indices]
 
         # Create a list of boxes for the API using the selected boxes, scores, and classes
-        # Ignore any boxes with a score less than 0.2 - these are likely false positives
         boxes = []
         for box, score, label, concept in zip(selected_boxes, selected_scores, selected_labels, selected_concepts):
-            if score < 0.2:
+            if score < min_score:
                 continue
             new_box = gen_box_localization(box_type, box, score, media, project_id, concept, label, group)
             boxes.append(new_box)
