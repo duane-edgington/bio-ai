@@ -1,14 +1,15 @@
 import multiprocessing
 import tempfile
-from pathlib import Path
-
 import numpy as np
+from pathlib import Path
+from bio.logger import info, err
 from PIL import Image
 
 
-def create_cifar_dataset(data_path: Path, media_lookup_by_id, localizations: [], class_names: []):
+def create_cifar_dataset(size: int, data_path: Path, media_lookup_by_id, localizations: [], class_names: []):
     """
     Create CIFAR formatted data from a list of media and localizations
+    :param size: Size to resize the images to, e.g. 32 for 32x32, 224 for 224x224
     :param data_path: Path to save the data
     :param media_lookup_by_id: Media id to media path lookup
     :param localizations: List of localizations
@@ -23,9 +24,9 @@ def create_cifar_dataset(data_path: Path, media_lookup_by_id, localizations: [],
         # Crop the images in parallel using multiprocessing to speed up the processing
         num_processes = min(multiprocessing.cpu_count(), len(media_lookup_by_id))
         with multiprocessing.Pool(num_processes) as pool:
-            args = [[temp_path, Path(media_path), [l for l in localizations if l.media == media_id]] for
+            args = [[size, temp_path, Path(media_path), [l for l in localizations if l.media == media_id]] for
                     media_id, media_path in media_lookup_by_id.items()]
-            pool.starmap(get_image_label, args)
+            pool.starmap(crop, args)
 
         # Read in the images and labels from a temporary directory
         for npy in sorted(temp_path.glob('*.npy')):
@@ -48,33 +49,60 @@ def create_cifar_dataset(data_path: Path, media_lookup_by_id, localizations: [],
     return images, labels
 
 
-def get_image_label(temp_path: Path, image_path: Path, localizations):
+def crop(size: int, temp_path: Path, image_path: Path, localizations) -> bool:
     """
-    Get the image and label for a localization
+    Crop the image for a localization
+    :param size: Size to resize the image to, e.g. 32 for 32x32, 224 for 224x224
     :param temp_path: Path to the temporary directory
     :param image_path: Path to the image
     :param localizations: Bounding box localization
-    :return: image, label
+    :return: True if the image was cropped successfully, False otherwise
     """
-    image_size = (32, 32)
+    try:
+        image_size = (size, size)
 
-    # Get the image
-    image = Image.open(image_path)
+        # Get the image
+        image = Image.open(image_path)
 
-    width, height = image.size
+        image_width, image_height = image.size
 
-    for i, l in enumerate(localizations):
-        # Crop the image
-        cropped_image = image.crop((int(width * l.x),
-                                    int(height * l.y),
-                                    int(width * (l.x + l.width)),
-                                    int(height * (l.y + l.height))))
+        for i, l in enumerate(localizations):
+            x1 = int(image_width * l.x)
+            y1 = int(image_height * l.y)
+            x2 = int(image_width * (l.x + l.width))
+            y2 = int(image_height * (l.y + l.height))
 
-        # Resize the image
-        resized_image = cropped_image.resize(image_size)
+            width = x2 - x1
+            height = y2 - y1
+            shorter_side = min(height, width)
+            longer_side = max(height, width)
+            delta = abs(longer_side - shorter_side)
 
-        # Convert to numpy array
-        image_array = np.asarray(resized_image)
+            # Divide the difference by 2 to determine how much padding is needed on each side
+            padding = delta // 2
 
-        # Save the image and label to the temporary directory as npy files
-        np.save(temp_path / f"{image_path.stem}-image-{l.attributes['Label']}.npy", image_array)
+            # Add the padding to the shorter side of the image
+            if width == shorter_side:
+                x1 -= padding
+                x2 += padding
+            else:
+                y1 -= padding
+                y2 += padding
+
+            # Crop the image
+            img = Image.open(image_path)
+            cropped_image = img.crop((x1, y1, x2, y2))
+
+            # Resize the image
+            resized_image = cropped_image.resize(image_size)
+
+            # Convert to numpy array
+            image_array = np.asarray(resized_image)
+
+            # Save the image and label to the temporary directory as npy files
+            np.save(temp_path / f"{image_path.stem}-image-{l.attributes['Label']}.npy", image_array)
+
+            return True
+    except Exception as e:
+        err(f"Error processing {image_path}: {e}. Skipping...")
+        return False

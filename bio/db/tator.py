@@ -89,6 +89,7 @@ def download_data(api: tator.api,
                   generator: str,
                   output_path: Path,
                   concept_list: [],
+                  cifar_size: int = 32,
                   voc: bool = False,
                   cifar: bool = False):
     """
@@ -100,6 +101,7 @@ def download_data(api: tator.api,
     :param generator: generator name, e.g. 'vars-labelbot' or 'vars-annotation'
     :param output_path: output directory to save the dataset
     :param concept_list: (optional) list of concepts to download
+    :param cifar_size: (optional) size of the CIFAR images
     :param voc: (optional) True if the dataset should also be stored in VOC format
     :param cifar: (optional) True if the dataset should also be stored in CIFAR format
     """
@@ -254,7 +256,7 @@ def download_data(api: tator.api,
             cifar_path = output_path / 'cifar'
             cifar_path.mkdir(exist_ok=True)
 
-            images, labels = create_cifar_dataset(cifar_path, media_lookup_by_id, localizations, labels)
+            images, labels = create_cifar_dataset(cifar_size, cifar_path, media_lookup_by_id, localizations, labels)
             np.save(cifar_path / 'images.npy', images)
             np.save(cifar_path / 'labels.npy', labels)
     except Exception as e:

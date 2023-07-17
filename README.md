@@ -94,6 +94,10 @@ labels.txt
 
 Use the optional --cifar flag to download data in the [CIFAR](https://www.cs.toronto.edu/~kriz/cifar.html) format, e.g.
 
+```shell
+download --generator vars-annotation --version Baseline --group MERGE_CLASSIFY --base-dir VARSi2MAP --concepts "Atolla" --cifar --voc --cifar-size 128
+```
+
 The CIFAR data is saved in a npy file with the following structure, e.g. for the data version Baseline:
 ```shell 
 
@@ -104,13 +108,25 @@ The CIFAR data is saved in a npy file with the following structure, e.g. for the
 │   │   │   └── images.npy
 ```
 
-Read the data with the following code:
+Read the data (and optionally visualize) with the following code:
 
 ```python
 import numpy as np
-images = np.load('images.npy', allow_pickle=True)
-labels = np.load('labels.npy', allow_pickle=True)
+import matplotlib.pyplot as plt
+images = np.load('Baseline/cifar/images.npy', allow_pickle=True)
+ 
+# Visualize a few images from the CIFAR data
+fig, axes = plt.subplots(nrows=2, ncols=5, figsize=(10, 4))
+
+for i, ax in enumerate(axes.flat):
+    ax.imshow(images[i])
+    ax.axis('off')
+
+plt.tight_layout()
+plt.show()
 ```
+ 
+![ Image link ](img/atolla128.png)
 
 
 ## Object Detection Training
