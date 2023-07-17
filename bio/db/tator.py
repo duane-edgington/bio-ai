@@ -1,13 +1,13 @@
+import multiprocessing
 import os
 import pickle
 import tempfile
-import time
 from pathlib import Path
 from typing import List
-from PIL import Image 
+from PIL import Image
 import numpy as np
 import tator
-import io 
+import io
 import itertools
 import torch
 from torchvision.ops import nms
@@ -233,7 +233,7 @@ def download_data(api: tator.api,
         exception(e)
         exit(-1)
 
- 
+
 def predict_classify_top1(temp_path: Path,
                           classification_model: KClassify,
                           media_path: str,
@@ -266,7 +266,7 @@ def predict_classify_top1(temp_path: Path,
             info(f'No predictions for localization {loc.id} > {threshold}')
             continue
         # Keep the top prediction if there is not a lot of confusion in the top 3
-        if len(predictions) > 1: 
+        if len(predictions) > 1:
             if predictions[0]['score'] - predictions[1]['score'] < 0.3:
                 warn(f'Confusion in top 2 predictions for localization {loc.id}')
                 continue
@@ -280,8 +280,14 @@ def predict_classify_top1(temp_path: Path,
         with temp_path.open('wb') as f:
             pickle.dump(results, f)
 
-def classify(api: tator.api, project_id: int, group: str, version: str, generator: str, output_path: Path,
-                    model_url: str):
+
+def classify(api: tator.api,
+             project_id: int,
+             group: str,
+             version: str,
+             generator: str,
+             output_path: Path,
+             model_url: str):
     """
     Assign localizations to a class based on a classification model. Assumes media is downloaded to the local machine
      in the expected format in output_path with the download command.
@@ -328,9 +334,9 @@ def classify(api: tator.api, project_id: int, group: str, version: str, generato
     for start in range(0, num_records, inc):
         info(f'Query records {start} to {start + 500}')
         localizations = api.get_localization_list(project=project_id,
-                                                      attribute=attribute_filter,
-                                                      start=start,
-                                                      stop=start + 500)
+                                                  attribute=attribute_filter,
+                                                  start=start,
+                                                  stop=start + 500)
         if len(localizations) == 0:
             break
 
@@ -372,7 +378,7 @@ def classify(api: tator.api, project_id: int, group: str, version: str, generato
             temp_path = Path(temp_dir)
             # Single thread example for testing
             for media_path, localizations in media_to_localizations.items():
-                 predict_classify_top1(temp_path, classification_model, media_path, localizations)
+                predict_classify_top1(temp_path, classification_model, media_path, localizations)
 
             '''with multiprocessing.Pool(num_processes) as pool:
                 a = [(temp_path, classification_model, media_path, localizations) for media_path, localizations in media_to_localizations.items()]
@@ -384,22 +390,22 @@ def classify(api: tator.api, project_id: int, group: str, version: str, generato
                     results = pickle.load(f)
                     loc = results['localization']
                     pred = results['prediction']
-                    if pred["score"] > 0.99 and pred['class'] != 'Poeobius meseres':
-                        # Replace machine name with actual name e.g. sp. A sp__A or krill_molt to krill molt
-                        class_name = pred['class'].replace('__', '. ')
-                        class_name = class_name.replace('_', ' ') 
-                        loc.attributes['Label'] = class_name 
-                        loc.attributes['concept'] = class_name 
-                        loc.attributes['score'] = pred['score'] 
-                        loc.attributes['group'] = 'VERIFY' 
-                        loc.version = None
-                        
-                        # Update the localization 
-                        info(loc) 
-                        info(f'Loading localization id {loc.id} {loc.attributes["concept"]} {loc.attributes["score"]}') 
-                        api.update_localization(loc.id, loc)
 
- 
+                    # Replace machine name with actual name e.g. sp. A sp__A or krill_molt to krill molt
+                    class_name = pred['class'].replace('__', '. ')
+                    class_name = class_name.replace('_', ' ')
+                    loc.attributes['Label'] = class_name
+                    loc.attributes['concept'] = class_name
+                    loc.attributes['score'] = pred['score']
+                    loc.attributes['group'] = 'VERIFY'
+                    loc.version = None
+
+                    # Update the localization
+                    info(loc)
+                    info(f'Loading localization id {loc.id} {loc.attributes["concept"]} {loc.attributes["score"]}')
+                    api.update_localization(loc.id, loc)
+
+
 def assign_cluster(api: tator.api,
                    project_id: int,
                    group: str,
@@ -407,7 +413,7 @@ def assign_cluster(api: tator.api,
                    generator: str,
                    clusters: [],
                    concept: str,
-                   label: str): 
+                   label: str):
     """
     Assign a cluster a new concept
     :param api: tator.api
@@ -647,7 +653,7 @@ def assign_iou(api: tator.api,
                 api.update_localization(max_iou_target.id, max_iou_target)
 
                 target_localizations.remove(max_iou_target)
-                source_by_media[r.media] = target_localizations 
+                source_by_media[r.media] = target_localizations
 
 
 def assign_nms(api: tator.api,
