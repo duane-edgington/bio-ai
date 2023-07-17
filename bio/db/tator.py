@@ -1,14 +1,20 @@
 import os
+import pickle
+import tempfile
 import time
 from pathlib import Path
+from typing import List
+from PIL import Image 
 import numpy as np
 import tator
+import io 
 import itertools
 import torch
 from torchvision.ops import nms
 
+from bio.model import KClassify
 from bio.data.generator import create_cifar_dataset
-from bio.logger import info, debug, err, exception
+from bio.logger import info, debug, err, exception, warn
 
 
 def init_api() -> tator.api:
@@ -91,7 +97,7 @@ def download_data(api: tator.api,
     :param version: version tag
     :param generator: generator name, e.g. 'vars-labelbot' or 'vars-annotation'
     :param output_path: output directory to save the dataset
-    :param concept_list: list of concepts to download
+    :param concept_list: (optional) list of concepts to download
     :param cifar: True if the dataset should also be stored in CIFAR format
     """
     try:
@@ -227,7 +233,173 @@ def download_data(api: tator.api,
         exception(e)
         exit(-1)
 
+ 
+def predict_classify_top1(temp_path: Path,
+                          classification_model: KClassify,
+                          media_path: str,
+                          localization: List[tator.models.Localization]):
+    """
+    Predict using a classification model
+    :param temp_path: path to the temp directory to store any localizations to later update in the database
+    :param classification_model: classification model object
+    :param media_path: path to the media file
+    :param localization:  Tator localization object
+    """
+    im = Image.open(media_path)
+    # Get the image size
+    width, height = im.size
+    for loc in localization:
+        x = int(loc.x * width)
+        y = int(loc.y * height)
+        w = int(loc.width * width)
+        h = int(loc.height * height)
+        crop = im.crop((x, y, x + w, y + h))
 
+        # Convert crop to bytes
+        byte_io = io.BytesIO()
+        crop.save(byte_io, format='JPEG')
+        byte_io.seek(0)
+        # Classify the crops
+        threshold = 0.3
+        predictions = classification_model.predict_bytes(byte_io, top_n=5, threshold=threshold)
+        if len(predictions) == 0:
+            info(f'No predictions for localization {loc.id} > {threshold}')
+            continue
+        # Keep the top prediction if there is not a lot of confusion in the top 3
+        if len(predictions) > 1: 
+            if predictions[0]['score'] - predictions[1]['score'] < 0.3:
+                warn(f'Confusion in top 2 predictions for localization {loc.id}')
+                continue
+        if len(predictions) > 2:
+            if predictions[1]['score'] - predictions[2]['score'] < 0.3:
+                warn(f'Confusion in top 3 predictions for localization {loc.id}')
+                continue
+
+        results = {'prediction': predictions[0], 'localization': loc}
+        temp_path = temp_path / f'{loc.id}.pkl'
+        with temp_path.open('wb') as f:
+            pickle.dump(results, f)
+
+def classify(api: tator.api, project_id: int, group: str, version: str, generator: str, output_path: Path,
+                    model_url: str):
+    """
+    Assign localizations to a class based on a classification model. Assumes media is downloaded to the local machine
+     in the expected format in output_path with the download command.
+    :param api: tator.api
+    :param project_id: project id
+    :param group: group name to assign classifications to
+    :param version: version tag to assign classifications to
+    :param generator: generator name, e.g. 'vars-labelbot' or 'vars-annotation'
+    :param output_path: path to the output directory data was downloaded to
+    :param model_url: fastai model url
+    """
+
+    classification_model = KClassify(model_url)
+
+    info(f'Testing model {model_url}')
+    test_image = f'{Path(__file__).parent.parent.absolute()}/tests/data/goldfish.jpg'
+    results = classification_model.predict_file(test_image, top_n=1, threshold=0.0)
+    if len(results) == 0:
+        err('Model did not return any predictions')
+        exit(-1)
+
+    info('Model OK')
+
+    if generator:
+        attribute_filter = [f"generator::{generator}"]
+    if group:
+        attribute_filter += [f"group::{group}"]
+    if version:
+        attribute_filter += [f"version::{version}"]
+
+    attribute_filter += ['Label::Unknown']
+
+    num_records = api.get_localization_count(project=project_id,
+                                             attribute=attribute_filter)
+
+    if num_records == 0:
+        info(f'No localizations to classify found in project {project_id} with filter {attribute_filter}')
+        return
+
+    info(f'Found {num_records} localizations to classify')
+
+    # Grab all localizations for the media ids that are 'Unknown', 500 at a time, classify and load them
+    inc = min(500, num_records)
+    for start in range(0, num_records, inc):
+        info(f'Query records {start} to {start + 500}')
+        localizations = api.get_localization_list(project=project_id,
+                                                      attribute=attribute_filter,
+                                                      start=start,
+                                                      stop=start + 500)
+        if len(localizations) == 0:
+            break
+
+        info(f'Found {len(localizations)} localizations to classify')
+
+        # Create a dictionary of media ids to localizations
+        media_to_localizations = {}
+        for loc in localizations:
+            if loc.media not in media_to_localizations:
+                # Get the media object using the media name
+                media = api.get_media(loc.media)
+
+                # Check if the media is downloaded to the output path
+                media_path = output_path / version / 'images' / media.name
+
+                if not media_path.exists():
+                    info(f'Media {media_path} not found.')
+                    continue
+
+                media_to_localizations[media_path.as_posix()] = []
+            media_to_localizations[media_path.as_posix()].append(loc)
+
+        # If no media is found, exit
+        if len(media_to_localizations) == 0:
+            info('No media found')
+            return
+
+        # For each media id, run the classification model in parallel with model.predict
+        info('Running classification model')
+
+        # Create a multiprocessing pool
+        num_processes = multiprocessing.cpu_count()
+
+        # if the number of me is less than the number of processes, use the number of media as the number of processes
+        if len(media_to_localizations) < num_processes:
+            num_processes = len(media_to_localizations)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            # Single thread example for testing
+            for media_path, localizations in media_to_localizations.items():
+                 predict_classify_top1(temp_path, classification_model, media_path, localizations)
+
+            '''with multiprocessing.Pool(num_processes) as pool:
+                a = [(temp_path, classification_model, media_path, localizations) for media_path, localizations in media_to_localizations.items()]
+                pool.starmap(predict_classify_top1, a)'''
+
+            info('Writing localizations back to the server')
+            for l in temp_path.glob('*.pkl'):
+                with l.open('rb') as f:
+                    results = pickle.load(f)
+                    loc = results['localization']
+                    pred = results['prediction']
+                    if pred["score"] > 0.99 and pred['class'] != 'Poeobius meseres':
+                        # Replace machine name with actual name e.g. sp. A sp__A or krill_molt to krill molt
+                        class_name = pred['class'].replace('__', '. ')
+                        class_name = class_name.replace('_', ' ') 
+                        loc.attributes['Label'] = class_name 
+                        loc.attributes['concept'] = class_name 
+                        loc.attributes['score'] = pred['score'] 
+                        loc.attributes['group'] = 'VERIFY' 
+                        loc.version = None
+                        
+                        # Update the localization 
+                        info(loc) 
+                        info(f'Loading localization id {loc.id} {loc.attributes["concept"]} {loc.attributes["score"]}') 
+                        api.update_localization(loc.id, loc)
+
+ 
 def assign_cluster(api: tator.api,
                    project_id: int,
                    group: str,
@@ -235,7 +407,7 @@ def assign_cluster(api: tator.api,
                    generator: str,
                    clusters: [],
                    concept: str,
-                   label: str):
+                   label: str): 
     """
     Assign a cluster a new concept
     :param api: tator.api
@@ -475,7 +647,7 @@ def assign_iou(api: tator.api,
                 api.update_localization(max_iou_target.id, max_iou_target)
 
                 target_localizations.remove(max_iou_target)
-                source_by_media[r.media] = target_localizations
+                source_by_media[r.media] = target_localizations 
 
 
 def assign_nms(api: tator.api,
@@ -497,7 +669,7 @@ def assign_nms(api: tator.api,
     :param version: version tag
     :param min_iou: (optional) minimum iou to filter localizations
     :param min_score: (optional) minimum score to filter localizations
-    :param dry_run: (optional) if True, do not update any localizations
+    :param dry_run: (optional) if True, do not create any localizations
     """
 
     # Get the localization type
