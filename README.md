@@ -113,7 +113,8 @@ Read the data (and optionally visualize) with the following code:
 ```python
 import numpy as np
 import matplotlib.pyplot as plt
-images = np.load('Baseline/cifar/images.npy', allow_pickle=True)
+images = np.load('Baseline/cifar/images.npy')
+labels = np.load('Baseline/cifar/labes.npy')
  
 # Visualize a few images from the CIFAR data
 fig, axes = plt.subplots(nrows=2, ncols=5, figsize=(10, 4))
@@ -126,7 +127,7 @@ plt.tight_layout()
 plt.show()
 ```
  
-![ Image link ](img/atolla128.png)
+![ Image link ](img/atolla_cifar128.png)
 
 
 ## Object Detection Training
