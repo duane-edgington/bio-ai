@@ -51,7 +51,7 @@ Download data format is saved to a directory with the following structure e.g. f
 │   │   ├── labels
 │   │   │   └── image1.txt
 │   │   │   └── image2.txt
-label-map.txt 
+labels.txt 
 ```
  
 Once data is downloaded, split the data and continue to the [training command](https://docs.mbari.org/deepsea-ai/commands/train/). This requires setting up the AWS account.
@@ -77,7 +77,7 @@ The CIFAR data is saved in a npy file with the following structure, e.g. for the
 ```shell 
 
 ── Baseline
-|   |   |-- label-map.txt
+|   |   |-- labels.txt
 │   │   ├── cifar
 │   │   │   └── labels.npy 
 │   │   │   └── images.npy
@@ -151,5 +151,5 @@ deepsea-ai split --input Baseline --output BaselineSplit
 Then train the model
 
 ```shell
-deepsea-ai train --images BaselineSplit/images.tar.gz  --labels BaselineSplit/labels.tar.gz --model yolov5x --epochs 50 --label-map label-map.txt --instance-type ml.p3.16xlarge  --batch-size 32 --input-s3 901103-bio-data --output-s3 901103-bio-ckpt
+deepsea-ai train --images BaselineSplit/images.tar.gz  --labels BaselineSplit/labels.tar.gz --model yolov5x --epochs 50 --labels labels.txt --instance-type ml.p3.16xlarge  --batch-size 32 --input-s3 901103-bio-data --output-s3 901103-bio-ckpt
 ```

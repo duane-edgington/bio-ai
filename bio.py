@@ -1,10 +1,12 @@
 import time
 
+from dotenv import load_dotenv
 import click as click
 from pathlib import Path
 
 from bio import __version__
-from bio.db.tator import init_api, download_data, find_project, assign_cluster, delete_cluster, assign_iou, classify
+from bio.db.tator import init_api, download_data, find_project, assign_cluster, delete, \
+    assign_iou, assign_nms, classify
 from bio.logger import create_logger_file, info, err
 
 # Default values
@@ -13,7 +15,6 @@ DEFAULT_BASE_DIR = Path(__file__).parent.as_posix()
 
 DEFAULT_VERSION = 'Baseline'
 DEFAULT_PROJECT = '901103-biodiversity'
-
 
 @click.group(context_settings={'help_option_names': ['-h', '--help']})
 @click.version_option(
@@ -61,13 +62,14 @@ def download(base_dir: str, group: str, version: str, generator: str, concepts: 
     download_data(api, project.id, group, version, generator, data_path, concept_list, cifar)
 
 
-@cli.command(name="assign", help='Assign concepts to clusters')
+@cli.command(name="assign", help='Assign concepts and/or labels to clusters')
 @click.option('--group', help='Group name, e.g. VB250')
 @click.option('--version', default=DEFAULT_VERSION, help=f'Dataset version to assign. Defaults to {DEFAULT_VERSION}.')
 @click.option('--generator', default='vars-labelbot', help='Generator name, e.g. vars-labelbot or vars-annotation')
 @click.option('--clusters', default='all', help='Comma separated list of clusters to assign.')
 @click.option('--concept', type=str, help='Concept to assign')
-def assign(group: str, version: str, generator: str, clusters: str, concept: str):
+@click.option('--label', type=str, help='Label to assign')
+def assign(group: str, version: str, generator: str, clusters: str, concept: str, label: str):
     create_logger_file(Path.cwd(), 'assign')
 
     # Connect to the database api
@@ -80,16 +82,45 @@ def assign(group: str, version: str, generator: str, clusters: str, concept: str
     # Find all localizations with the given generator and group and cluster
     cluster_list = clusters.split(',')
     assign_cluster(api, project_id=project.id, version=version, generator=generator, group=group, clusters=cluster_list,
-                   concept=concept)
+                   concept=concept, label=label)
 
 
-@cli.command(name="delete", help='Delete clusters')
-@click.option('--group', help='Group name, e.g. VB250')
+@cli.command(name="assign-nms", help='Assign concepts and labels using combined models using NMS')
+@click.option('--group', help='New group name, e.g. VB250')
 @click.option('--version', default=DEFAULT_VERSION, help=f'Dataset version to assign. Defaults to {DEFAULT_VERSION}.')
-@click.option('--generator', default='vars-labelbot', help='Generator name, e.g. vars-labelbot or vars-annotation')
-@click.option('--clusters', default='all', help='Comma separated list of clusters to assign.')
-def assign(group: str, version: str, generator: str, clusters: str):
-    create_logger_file(Path.cwd(), 'assign')
+@click.option('--exclude', type=str, help='(Optional) comma separated list of concepts to exclude.')
+@click.option('--include', type=str, help='(Optional) comma separated list of concepts to include.')
+@click.option('--min-iou', type=float, help='(Optional)  minimum iou to filter localizations between 0-1')
+@click.option('--min-score', type=float, help='(Optional)  minimum score to filter localizations between 0-1')
+@click.option('--dry-run', is_flag=True, help='Dry run, do not delete')
+def assignNMS(group: str, version: str, exclude: str, include: str, min_iou: float, min_score: float, dry_run: bool):
+    create_logger_file(Path.cwd(), 'assign-nms')
+
+    # Connect to the database api
+    api = init_api()
+
+    # Find the project
+    project = find_project(api, DEFAULT_PROJECT)
+    info(f'Found project id: {project.name} for project {DEFAULT_PROJECT}. Excluding {exclude}')
+
+    # Convert comma separated list of concepts to a list
+    if include:
+        include = include.split(',')
+    if exclude:
+        exclude = exclude.split(',')
+    assign_nms(api, project_id=project.id, version=version, group=group, exclude=exclude, include=include, dry_run=dry_run, min_score=min_score, min_iou=min_iou)
+
+
+@cli.command(name="delete", help='Delete clusters, concepts or labels')
+@click.option('--group', help='Group name, e.g. VB250')
+@click.option('--version', help=f'Dataset version to assign. Defaults to {DEFAULT_VERSION}.')
+@click.option('--generator', help='Generator name, e.g. vars-labelbot or vars-annotation')
+@click.option('--clusters', help='Comma separated list of clusters to delete.')
+@click.option('--concepts', type=str, help='Comma separated list of concepts to delete')
+@click.option('--labels', type=str, help='Comma separated list of labels to delete')
+@click.option('--dry-run', is_flag=True, help='Dry run, do not delete')
+def delete_bulk(group: str, version: str, generator: str, clusters: str, concepts: str, labels:str, dry_run: bool):
+    create_logger_file(Path.cwd(), 'delete')
 
     # Connect to the database api
     api = init_api()
@@ -98,9 +129,22 @@ def assign(group: str, version: str, generator: str, clusters: str):
     project = find_project(api, DEFAULT_PROJECT)
     info(f'Found project id: {project.name} for project {DEFAULT_PROJECT}')
 
-    # Find all localizations with the given generator and group and cluster
-    cluster_list = clusters.split(',')
-    delete_cluster(api, project_id=project.id, version=version, generator=generator, group=group, clusters=cluster_list)
+    if clusters:
+        cluster_list = clusters.split(',')
+        delete(api, project_id=project.id, version=version, generator=generator, group=group,
+                       clusters=cluster_list, dry_run=dry_run)
+    if concepts:
+        concept_list = concepts.split(',')
+        delete(api, project_id=project.id, version=version, generator=generator, group=group,
+                       concepts=concept_list, dry_run=dry_run)
+    if labels:
+        label_list = labels.split(',')
+        delete(api, project_id=project.id, version=version, generator=generator, group=group,
+                       labels=label_list, dry_run=dry_run)
+
+    # if deleting everything, then delete the group
+    if not clusters and not concepts and not labels:
+        delete(api, project_id=project.id, version=version, generator=generator, group=group, dry_run=dry_run)
 
 
 @cli.command(name="iou", help='Assign from iou from one group/generator to another')
@@ -149,8 +193,6 @@ def assign(group: str, version: str, generator: str, model_url: str, base_dir:st
 
 if __name__ == '__main__':
     try:
-        from dotenv import load_dotenv
-
         load_dotenv('.env')
         start_time = time.time()
         cli()
