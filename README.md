@@ -44,29 +44,18 @@ python bio.py download --generator vars-labelbot --version Baseline --concepts "
 Download data format is saved to a directory with the following structure e.g. for the Baseline version:
 
 ```
-── Baseline
-│   │   ├── images
-│   │   │   └── image1.jpg
-│   │   │   └── image2.jpg
-│   │   ├── labels
-│   │   │   └── image1.txt
-│   │   │   └── image2.txt
-labels.txt 
+Baseline
+    ├── labels.txt
+    ├── images
+    │   ├── image1.png
+    │   ├── image2.png 
+    ├── labels
+    │   ├── image1.txt
+    │   ├── image2.txt 
 ```
+ 
 Once data is downloaded, split the data and continue to the [training command](https://docs.mbari.org/deepsea-ai/commands/train/). This requires setting up the AWS account.
 This should be done by an AWS administrator if you are not already setup.
-
-### Options
-
-| Option | Description                                                                                                              |
-| --- |--------------------------------------------------------------------------------------------------------------------------|
- | --help | Show the help message and exit.                                                                                          |
-| --base-dir | The base directory to save the downloaded data.  The default is the current directory.                                   |
-| --generator| The name of the generator to download data from.                                                                         |
-| --version| The version of the generator to download data from. Default is Baseline.                                                 |
-| --concepts| A comma separated list of concepts to download data for.  This is the name of the concept, e.g. Krill molt, Nanomia.     |
-| --cifar| Download data in the CIFAR format.  The default is to download data in the format to train a YOLO object detection model |
-| --group| The name of the group to download data for.  The default is to download data for all groups.                             |
 
 ### PASCAL VOC data format
 
@@ -78,18 +67,28 @@ python bio.py download --generator vars-labelbot --version Baseline --concepts "
 
 Download data format is saved to a directory with the following structure e.g. for the Baseline version:
 ```
-── Baseline
-│   │   ├── images
-│   │   │   └── image1.jpg
-│   │   │   └── image2.jpg
-│   │   ├── labels
-│   │   │   └── image1.txt
-│   │   │   └── image1.xml
-│   │   │   └── image2.txt
-│   │   │   └── image2.xml
-labels.txt 
+Baseline
+    ├── labels.txt
+    ├── voc
+    │   ├── image1.xml
+    │   ├── image2.xml 
 ```
  
+### COCO data format
+
+Use the optional --coco flag to download data in the [COCO](https://cocodataset.org/#home) format, e.g.
+
+```shell
+download --generator vars-annotation --version Baseline --group MERGE_CLASSIFY --base-dir VARSi2MAP --concepts "Atolla" --coco
+```
+
+Download data format is saved to a directory with the following structure e.g. for the Baseline version:
+```
+Baseline
+    ├── labels.txt
+    ├── coco
+    │   └── coco.json
+```
 ### CIFAR data format
 
 Use the optional --cifar flag to download data in the [CIFAR](https://www.cs.toronto.edu/~kriz/cifar.html) format, e.g.
@@ -101,11 +100,11 @@ download --generator vars-annotation --version Baseline --group MERGE_CLASSIFY -
 The CIFAR data is saved in a npy file with the following structure, e.g. for the data version Baseline:
 ```shell 
 
-── Baseline
-|   |   |-- labels.txt
-│   │   ├── cifar
-│   │   │   └── labels.npy 
-│   │   │   └── images.npy
+Baseline
+    ├── labels.txt
+    ├── cifar
+    │   ├── images.npy
+    │   └── labels.npy
 ```
 
 Read the data (and optionally visualize) with the following code:

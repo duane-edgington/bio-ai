@@ -1,3 +1,4 @@
+import json
 import multiprocessing
 import os
 import pickle
@@ -91,6 +92,7 @@ def download_data(api: tator.api,
                   concept_list: [],
                   cifar_size: int = 32,
                   voc: bool = False,
+                  coco: bool = False,
                   cifar: bool = False):
     """
     Download a dataset based on a version tag for training
@@ -103,6 +105,7 @@ def download_data(api: tator.api,
     :param concept_list: (optional) list of concepts to download
     :param cifar_size: (optional) size of the CIFAR images
     :param voc: (optional) True if the dataset should also be stored in VOC format
+    :param coco: (optional) True if the dataset should also be stored in COCO format
     :param cifar: (optional) True if the dataset should also be stored in CIFAR format
     """
     try:
@@ -121,20 +124,21 @@ def download_data(api: tator.api,
 
         # TODO: figure out out to get annotations for a specific version
         attribute_filter = []
+        num_records = 0
         if generator:
             attribute_filter = [f"generator::{generator}"]
         if group:
             attribute_filter += [f"group::{group}"]
         if concept_list:
             for c in concept_list:
-                attribute_filter += [f"concept::{c}"]
+                num_records += api.get_localization_count(project=project_id, attribute=attribute_filter + [f"concept::{c}"])
 
-        num_records = api.get_localization_count(project=project_id, attribute=attribute_filter)
-
-        info(f'Found {num_records} records for version {version.name} and generator {generator} and group {group}')
+        info(f'Found {num_records} records for version {version.name} and generator {generator}, group {group} and '
+             f"including {concept_list if concept_list else 'everything'} ")
 
         if num_records == 0:
-            err(f'Could not find any records for version {version.name} and generator {generator} and group {group}')
+            info(f'Could not find any records for version {version.name} and generator {generator}, group {group} and '
+                 f"including {concept_list if concept_list else 'everything'} ")
             return
 
         # Create the output directory in the expected format that deepsea-ai expects for training
@@ -143,21 +147,43 @@ def download_data(api: tator.api,
         label_path.mkdir(exist_ok=True)
         media_path = output_path / 'images'
         media_path.mkdir(exist_ok=True)
+        if voc:
+            voc_path = output_path / 'voc'
+            voc_path.mkdir(exist_ok=True)
+        if coco:
+            coco_path = output_path / 'coco'
+            coco_path.mkdir(exist_ok=True)
 
         localizations = []
         inc = min(500, num_records)
-        for start in range(0, num_records, inc):
-            info(f'Query records {start} to {start + 500}')
+        if concept_list:
+            for c in concept_list:
+                for start in range(0, num_records, inc):
+                    filter = attribute_filter + [f"concept::{c}"]
+                    info(f'Query records {start} to {start + inc} using attribute filter {filter} ')
 
-            new_localizations = api.get_localization_list(project=project_id,
-                                                          attribute=attribute_filter,
-                                                          start=start,
-                                                          stop=start + 500)
+                    new_localizations = api.get_localization_list(project=project_id,
+                                                                  attribute=filter,
+                                                                  start=start,
+                                                                  stop=start + 500)
 
-            if len(new_localizations) == 0:
-                break
+                    if len(new_localizations) == 0:
+                        break
 
-            localizations = localizations + new_localizations
+                    localizations = localizations + new_localizations
+        else:
+            for start in range(0, num_records, inc):
+                info(f'Query records {start} to {start + inc} using attribute filter {attribute_filter}')
+
+                new_localizations = api.get_localization_list(project=project_id,
+                                                              attribute=attribute_filter,
+                                                              start=start,
+                                                              stop=start + inc)
+
+                if len(new_localizations) == 0:
+                    break
+
+                localizations = localizations + new_localizations
 
         info(f'Found {len(localizations)} records for version {version.name} and generator {generator}')
         info(f'Creating output directory {output_path} in YOLO format')
@@ -169,7 +195,6 @@ def download_data(api: tator.api,
 
         # Get all the media objects at those ids
         all_media = get_media(api, project_id, media_ids)
-        info(f'Total unique media items are {len(all_media)}')
 
         # Get all the unique media names
         media_names = list(set([m.name.split('.png')[0] for m in all_media]))
@@ -191,16 +216,25 @@ def download_data(api: tator.api,
                 for progress in tator.util.download_media(api, media, out_path):
                     debug(f"{media.name} download progress: {progress}%")
 
-        # Create YOLO and VOC formatted files, one per media
+        # Create YOLO, and optionally COCO, CIFAR, or VOC formatted files
+
+        info(f'Creating YOLO files in {label_path}')
+        json_content = {}
+        if voc:
+            info(f'Creating VOC files in {voc_path}')
+
         for media_name in media_names:
+
+            # Get all the localizations for this media
+            media_localizations = [l for l in localizations if l.media == media.id]
+
             # Get the media object
             media = [m for m in all_media if m.name.split('.png')[0] == media_name][0]
 
             media_lookup_by_id[media.id] = media_path / media.name
+            yolo_path = label_path / f'{media_name}.txt'
 
-            with (label_path / f'{media_name}.txt').open('w') as f:
-                # Get all the localizations for this media
-                media_localizations = [l for l in localizations if l.media == media.id]
+            with yolo_path.open('w') as f:
 
                 for loc in media_localizations:
                     # Get the label index
@@ -217,7 +251,7 @@ def download_data(api: tator.api,
             # optionally create VOC files
             if voc:
                 # Paths to the VOC file and the image
-                voc_path = label_path / f'{media_name}.xml'
+                voc_xml_path = voc_path / f'{media_name}.xml'
                 image_path = (media_path / media.name).as_posix()
 
                 # Get the image size from the image using PIL
@@ -229,7 +263,7 @@ def download_data(api: tator.api,
                 # Add localizations
                 for loc in media_localizations:
 
-                    # Get the bounding box which is normalized to the image size and lower left corner origin
+                    # Get the bounding box which is normalized to the image size and upper left corner
                     x1 = loc.x
                     y1 = loc.y
                     x2 = loc.x + loc.width
@@ -248,17 +282,54 @@ def download_data(api: tator.api,
                     writer.addObject(loc.attributes['Label'], x1, y1, x2, y2)
 
                 # Write the file
-                writer.save(voc_path.as_posix())
+                writer.save(voc_xml_path.as_posix())
+
+            if coco:
+                coco_localizations = []
+                # Add localizations
+                for loc in media_localizations:
+                    # Get the bounding box which is normalized to the image size and upper left corner
+                    x = loc.x
+                    y = loc.y
+                    w = loc.x + loc.width
+                    h = loc.y + loc.height
+
+                    x *= image_width
+                    y *= image_height
+                    w *= image_width
+                    h *= image_height
+
+                    x = int(round(x))
+                    y = int(round(y))
+                    w = int(round(w))
+                    h = int(round(h))
+
+                    # optionally add to COCO formatted dataset
+                    coco_localizations.append({
+                        'concept': loc.attributes['Label'],
+                        'x': x,
+                        'y': y,
+                        'width': w,
+                        'height': h,
+                    })
+
+                json_content[yolo_path.as_posix()] = coco_localizations
 
         # optionally create a CIFAR formatted dataset
         if cifar:
-            info(f'Creating output directory {output_path} in CIFAR format')
             cifar_path = output_path / 'cifar'
             cifar_path.mkdir(exist_ok=True)
+            info(f'Creating CIFAR data in {cifar_path}')
 
             images, labels = create_cifar_dataset(cifar_size, cifar_path, media_lookup_by_id, localizations, labels)
             np.save(cifar_path / 'images.npy', images)
             np.save(cifar_path / 'labels.npy', labels)
+
+        if coco:
+            info(f'Creating COCO data in {coco_path}')
+            with (coco_path / 'coco.json').open('w') as f:
+                json.dump(json_content, f, indent=2)
+
     except Exception as e:
         exception(e)
         exit(-1)

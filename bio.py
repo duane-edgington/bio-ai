@@ -36,9 +36,11 @@ def cli():
 @click.option('--generator', help='Generator name, e.g. vars-labelbot or vars-annotation')
 @click.option('--concepts', default='all', help='Comma separated list of concepts to download.')
 @click.option('--voc', is_flag=True, help='True if export as VOC dataset, False if not.')
+@click.option('--coco', is_flag=True, help='True if export as COCO dataset, False if not.')
 @click.option('--cifar', is_flag=True, help='True if export as CIFAR dataset, False if not.')
 @click.option('--cifar-size', default=32, help='Size of CIFAR images.')
-def download(base_dir: str, group: str, version: str, generator: str, concepts: str, voc: bool, cifar: bool, cifar_size: int):
+def download(base_dir: str, group: str, version: str, generator: str, concepts: str, voc: bool, cifar: bool, coco: bool,
+             cifar_size: int):
     create_logger_file(Path.cwd(), 'download')
     base_path = Path(base_dir)
     base_path.mkdir(exist_ok=True)
@@ -61,7 +63,7 @@ def download(base_dir: str, group: str, version: str, generator: str, concepts: 
     else:
         concept_list = concepts.split(',')
         concept_list = [l.strip() for l in concept_list]
-    download_data(api, project.id, group, version, generator, data_path, concept_list, cifar_size, voc, cifar)
+    download_data(api, project.id, group, version, generator, data_path, concept_list, cifar_size, voc, coco, cifar)
 
 
 @cli.command(name="assign", help='Assign concepts and/or labels to clusters')
