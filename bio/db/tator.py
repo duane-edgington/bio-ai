@@ -132,6 +132,8 @@ def download_data(api: tator.api,
         if concept_list:
             for c in concept_list:
                 num_records += api.get_localization_count(project=project_id, attribute=attribute_filter + [f"concept::{c}"])
+        else:
+            num_records = api.get_localization_count(project=project_id, attribute=attribute_filter)
 
         info(f'Found {num_records} records for version {version.name} and generator {generator}, group {group} and '
              f"including {concept_list if concept_list else 'everything'} ")
