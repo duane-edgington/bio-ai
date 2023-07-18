@@ -157,7 +157,7 @@ def download_data(api: tator.api,
             coco_path.mkdir(exist_ok=True)
 
         localizations = []
-        inc = min(500, num_records)
+        inc = min(5000, num_records)
         if concept_list:
             for c in concept_list:
                 for start in range(0, num_records, inc):
@@ -167,7 +167,7 @@ def download_data(api: tator.api,
                     new_localizations = api.get_localization_list(project=project_id,
                                                                   attribute=filter,
                                                                   start=start,
-                                                                  stop=start + 500)
+                                                                  stop=start + 5000)
 
                     if len(new_localizations) == 0:
                         break
@@ -211,15 +211,13 @@ def download_data(api: tator.api,
 
         # Download all the media files - this needs to be done before we can create the VOC files which reference the
         # media file size
-        for m in media_ids:
-            media = api.get_media(m)
+        for media in all_media:
             out_path = media_path / media.name
             if not out_path.exists():
                 for progress in tator.util.download_media(api, media, out_path):
                     debug(f"{media.name} download progress: {progress}%")
 
         # Create YOLO, and optionally COCO, CIFAR, or VOC formatted files
-
         info(f'Creating YOLO files in {label_path}')
         json_content = {}
         if voc:
@@ -235,6 +233,11 @@ def download_data(api: tator.api,
 
             media_lookup_by_id[media.id] = media_path / media.name
             yolo_path = label_path / f'{media_name}.txt'
+            image_path = media_path / media.name
+
+            # Get the image size from the image using PIL
+            image = Image.open(image_path)
+            image_width, image_height = image.size
 
             with yolo_path.open('w') as f:
 
@@ -255,10 +258,6 @@ def download_data(api: tator.api,
                 # Paths to the VOC file and the image
                 voc_xml_path = voc_path / f'{media_name}.xml'
                 image_path = (media_path / media.name).as_posix()
-
-                # Get the image size from the image using PIL
-                image = Image.open(image_path)
-                image_width, image_height = image.size
 
                 writer = Writer(image_path, image_width, image_height)
 
