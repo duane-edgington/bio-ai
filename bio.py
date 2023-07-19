@@ -94,8 +94,8 @@ def assign(group: str, version: str, generator: str, clusters: str, concept: str
 @click.option('--version', default=DEFAULT_VERSION, help=f'Dataset version to assign. Defaults to {DEFAULT_VERSION}.')
 @click.option('--exclude', type=str, help='(Optional) comma separated list of concepts to exclude.')
 @click.option('--include', type=str, help='(Optional) comma separated list of concepts to include.')
-@click.option('--min-iou', type=float, help='(Optional)  minimum iou to filter localizations between 0-1')
-@click.option('--min-score', type=float, help='(Optional)  minimum score to filter localizations between 0-1')
+@click.option('--min-iou', type=float, default=0.5, help='(Optional)  minimum iou to filter localizations between 0-1. Defaults to 0.5')
+@click.option('--min-score', type=float, default=0.2, help='(Optional)  minimum score to filter localizations between 0-1. Defaults to 0.2')
 @click.option('--dry-run', is_flag=True, help='Dry run, do not delete')
 def assignNMS(group: str, version: str, exclude: str, include: str, min_iou: float, min_score: float, dry_run: bool):
     create_logger_file(Path.cwd(), 'assign-nms')

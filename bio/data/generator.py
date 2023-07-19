@@ -94,7 +94,7 @@ def crop(size: int, temp_path: Path, image_path: Path, localizations) -> bool:
             cropped_image = img.crop((x1, y1, x2, y2))
 
             # Resize the image
-            resized_image = cropped_image.resize(image_size)
+            resized_image = cropped_image.resize(image_size, resample=Image.LANCZOS)
 
             # Convert to numpy array
             image_array = np.asarray(resized_image)

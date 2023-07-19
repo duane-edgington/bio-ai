@@ -91,6 +91,7 @@ def download_data(api: tator.api,
                   output_path: Path,
                   concept_list: [],
                   cifar_size: int = 32,
+                  save_score: bool = False,
                   voc: bool = False,
                   coco: bool = False,
                   cifar: bool = False):
@@ -104,6 +105,7 @@ def download_data(api: tator.api,
     :param output_path: output directory to save the dataset
     :param concept_list: (optional) list of concepts to download
     :param cifar_size: (optional) size of the CIFAR images
+    :param save_score: (optional) True if the score should be saved in the YOLO format
     :param voc: (optional) True if the dataset should also be stored in VOC format
     :param coco: (optional) True if the dataset should also be stored in COCO format
     :param cifar: (optional) True if the dataset should also be stored in CIFAR format
@@ -251,7 +253,10 @@ def download_data(api: tator.api,
                     y = loc.y + loc.height / 2
                     w = loc.width
                     h = loc.height
-                    f.write(f'{label_idx} {x} {y} {w} {h}\n')
+                    if save_score:
+                        f.write(f"{label_idx} {x} {y} {w} {h} {loc.attributes['score']}\n")
+                    else:
+                        f.write(f'{label_idx} {x} {y} {w} {h}\n')
 
             # optionally create VOC files
             if voc:
@@ -771,7 +776,7 @@ def assign_nms(api: tator.api,
     Assign the best concepts in all groups for any image to the new group using NMS.
     :param api: tator.api
     :param project_id: project id
-    :param group: group name to assign boxes output from nms to
+    :param group: (optional) group name to query for localizations, default to all groups if not specified
     :param exclude: (optional) list of concepts/Labels to exclude
     :param include: (optional) list of concepts/Labels to include, default to all if not specified
     :param version: version tag
@@ -779,6 +784,7 @@ def assign_nms(api: tator.api,
     :param min_score: (optional) minimum score to filter localizations
     :param dry_run: (optional) if True, do not create any localizations
     """
+    group_assign = "NMS"
 
     # Get the localization type
     localization_types = api.get_localization_type_list(project_id)
@@ -790,63 +796,82 @@ def assign_nms(api: tator.api,
             box_type = l.id
             break
 
-    if group is None:
-        err(f'Group must be specified')
-        return
-
     # Fail if we could not find the box type
     if box_type is None:
         err(f'Could not find localization type "Boxes"')
         return
 
+    # Fail if iou_threshold is not between 0 and 1 or it is None
+    if min_iou is None or min_iou < 0 or min_iou > 1:
+        err(f'Invalid iou_threshold {min_iou}')
+        return
+
+    # Fail if score_threshold is not between 0 and 1 or it is None
+    if min_score is None or min_score < 0 or min_score > 1:
+        err(f'Invalid score_threshold {min_score}')
+        return
+
     attribute_filter = []
     if version:
-        attribute_filter.append([f"version::{version}"])
-    if include:
-        for i in include:
-            attribute_filter += [f"concept::{i}"]
+        attribute_filter.append(f"version::{version}")
+    if group:
+        attribute_filter.append(f"group::{group}")
 
     # Check if any records exist with the group first, and alert the user if so
-    num_in_group = api.get_localization_count(project=project_id, attribute=[f"group::{group}"])
+    num_in_group = api.get_localization_count(project=project_id, attribute=[f"group::{group_assign}"])
     if num_in_group > 0:
-        info(f"Found {num_in_group} records in group {group}. "
+        info(f"Found {num_in_group} records in group {group_assign}. "
              f"Please remove them before running this script.")
         return
 
-    num_records = api.get_localization_count(project=project_id, attribute=attribute_filter)
+    num_records = 0
+    if include:
+        for i in include:
+            num_records += api.get_localization_count(project=project_id, attribute=attribute_filter + [f"concept::{i}"])
+    else:
+        num_records = api.get_localization_count(project=project_id, attribute=attribute_filter)
 
     if num_records == 0:
-        info(f"No records found with version {version} "
+        info(f"No records found with version {version} and group {group} "
              f"including {include if include else 'everything'} ")
         return
 
-    if dry_run:
-        info(f"Dry run. Found {num_records} records with version {version} and group {group} "
-             f"including {include if include else 'everything'} ")
-        return
-
-    # Fetch localizations up to 2000 at a time based on the attribute filter
-    inc = min(2000, num_records)
+    # Fetch localizations up to 5000 at a time based on the attribute filter
+    inc = min(5000, num_records)
     records = []
-    for start in range(0, num_records, inc):
-        info(f'Query records {start} to {start + 2000}')
-        localizations = api.get_localization_list(project=project_id,
-                                                  attribute=attribute_filter,
-                                                  start=start,
-                                                  stop=start + 2000)
+    if include:
+        for i in include:
+            info(f'Query records for {i}')
+            new_records = api.get_localization_list(project=project_id,
+                                                      attribute=attribute_filter + [f"concept::{i}"],
+                                                      start=0,
+                                                      stop=num_records)
+            if len(new_records) == 0:
+                break
+            records += new_records
+    else:
+        for start in range(0, num_records, inc):
+            info(f'Query records {start} to {start + 5000}')
+            new_records = api.get_localization_list(project=project_id,
+                                                      attribute=attribute_filter,
+                                                      start=start,
+                                                      stop=start + 5000)
+            if len(new_records) == 0:
+                break
+            records += new_records
 
-        if len(localizations) == 0:
-            break
+        # Only keep localizations in the group MERGE or MERGE_CLASSIFY
+        records = [l for l in records if l.attributes['group'] in ['MERGE', 'MERGE_CLASSIFY']]
 
         # Remove localizations if exclude is set
         if exclude:
-            new_localizations = [l for l in localizations if
+            filtered_records = [l for l in records if
                                  l.attributes['concept'] not in exclude and
                                  l.attributes['Label'] not in exclude]
         else:
-            new_localizations = localizations
+            filtered_records = records
 
-        records += new_localizations
+        num_records = len(filtered_records)
 
     info(f"Found {num_records} records with version {version} and group {group} "
          f"including {include if include else 'everything'} "
@@ -854,7 +879,7 @@ def assign_nms(api: tator.api,
 
     # Create a dictionary of target localizations by media id
     by_media = {}
-    for r in records:
+    for r in filtered_records:
         if r.media not in by_media:
             by_media[r.media] = []
         by_media[r.media].append(r)
@@ -862,8 +887,17 @@ def assign_nms(api: tator.api,
     # Iterate over the dictionary of localizations by media
     # For each media, run NMS to get the best boxes
     num_created = 0
+    num_unknown = 0
+    num_revisit = 0
+    num_media = 0
     for media, localizations in by_media.items():
 
+        # if any localizations are in the group MERGE_CLASSIFY, then skip this media
+        if any([l.attributes['group'] == 'MERGE_CLASSIFY' for l in localizations]):
+            info(f"Skipping media {media} because it has localizations in group MERGE_CLASSIFY")
+            continue
+
+        num_media += 1
         # Create a tensor of scores and boxes
         scores = torch.tensor([l.attributes['score'] for l in localizations], dtype=torch.float32)
         boxes_nms = torch.tensor([[l.x, l.y, l.x + l.width, l.y + l.height] for l in localizations],
@@ -874,9 +908,8 @@ def assign_nms(api: tator.api,
         boxes_nms += torch.rand(boxes_nms.shape) * 1e-3
         labels = [l.attributes['Label'] for l in localizations]
         concepts = [l.attributes['concept'] for l in localizations]
-        iou_threshold = min_iou
 
-        selected_indices = nms(boxes_nms, scores, iou_threshold)
+        selected_indices = nms(boxes_nms, scores, min_iou)
 
         # Convert tensors to lists
         selected_indices = selected_indices.tolist()
@@ -895,18 +928,28 @@ def assign_nms(api: tator.api,
         for box, score, label, concept in zip(selected_boxes, selected_scores, selected_labels, selected_concepts):
             if score < min_score:
                 continue
-            new_box = gen_box_localization(box_type, box, score, media, project_id, concept, label, group)
+            new_box = gen_box_localization(box_type, box, score, media, project_id, concept, label, group_assign)
             boxes.append(new_box)
 
-        # Create the localizations 200 at a time
-        for b in range(0, len(boxes), 200):
-            info(f'Creating {len(boxes[b:b + 200])} localizations for media {media} to group {group}...')
-            info(boxes[b:b + 200])
-            response = api.create_localization_list(project_id, boxes[b:b + 200])
-            debug(response)
-            num_created += len(boxes[b:b + 200])
+        # Create the localizations 5000 at a time
+        for b in range(0, len(boxes), 5000):
+            info(f'Creating {len(boxes[b:b + 5000])} localizations for media {media} to group {group_assign}...')
+            debug(f'First box: {boxes[b]}')
 
-    info(f'Created {num_created} total localizations in group {group}...')
+            num_created += len(boxes[b:b + 5000])
+            # Count the number of localizations that were Unknown
+            for box in boxes[b:b + 5000]:
+                if box['attributes']['Label'] == "Unknown":
+                    num_unknown += 1
+                if box['attributes']['Label'] == "Revisit":
+                    num_revisit += 1
+            if dry_run:
+                continue
+
+            response = api.create_localization_list(project_id, boxes[b:b + 5000])
+            debug(response)
+
+    info(f'Created {num_created} total localizations out of {num_records} in {num_media} frames in group {group_assign}. Total Unknown: {num_unknown}. Total Revisit: {num_revisit}')
 
 
 def gen_box_localization(box_type: int,
