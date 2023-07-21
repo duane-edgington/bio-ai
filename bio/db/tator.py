@@ -91,6 +91,7 @@ def download_data(api: tator.api,
                   output_path: Path,
                   concept_list: [],
                   cifar_size: int = 32,
+                  skip_image_download: bool = False,
                   save_score: bool = False,
                   voc: bool = False,
                   coco: bool = False,
@@ -105,6 +106,7 @@ def download_data(api: tator.api,
     :param output_path: output directory to save the dataset
     :param concept_list: (optional) list of concepts to download
     :param cifar_size: (optional) size of the CIFAR images
+    :param skip_image_download: (optional) True if the images should not be downloaded
     :param save_score: (optional) True if the score should be saved in the YOLO format
     :param voc: (optional) True if the dataset should also be stored in VOC format
     :param coco: (optional) True if the dataset should also be stored in COCO format
@@ -211,13 +213,14 @@ def download_data(api: tator.api,
             for label in labels:
                 f.write(f'{label}\n')
 
-        # Download all the media files - this needs to be done before we can create the VOC files which reference the
-        # media file size
-        for media in all_media:
-            out_path = media_path / media.name
-            if not out_path.exists():
-                for progress in tator.util.download_media(api, media, out_path):
-                    debug(f"{media.name} download progress: {progress}%")
+        if not skip_image_download:
+            # Download all the media files - this needs to be done before we can create the VOC/CIFAR files which reference the
+            # media file size
+            for media in all_media:
+                out_path = media_path / media.name
+                if not out_path.exists():
+                    for progress in tator.util.download_media(api, media, out_path):
+                        debug(f"{media.name} download progress: {progress}%")
 
         # Create YOLO, and optionally COCO, CIFAR, or VOC formatted files
         info(f'Creating YOLO files in {label_path}')
