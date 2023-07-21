@@ -227,11 +227,11 @@ def download_data(api: tator.api,
 
         for media_name in media_names:
 
-            # Get all the localizations for this media
-            media_localizations = [l for l in localizations if l.media == media.id]
-
             # Get the media object
             media = [m for m in all_media if m.name.split('.png')[0] == media_name][0]
+
+            # Get all the localizations for this media
+            media_localizations = [l for l in localizations if l.media == media.id]
 
             media_lookup_by_id[media.id] = media_path / media.name
             yolo_path = label_path / f'{media_name}.txt'
