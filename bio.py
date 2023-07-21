@@ -65,7 +65,9 @@ def download(base_dir: str, group: str, version: str, generator: str, concepts: 
     else:
         concept_list = concepts.split(',')
         concept_list = [l.strip() for l in concept_list]
-    download_data(api, project.id, group, version, generator, data_path, concept_list, skip_image_download, save_score, cifar_size, voc, coco, cifar)
+    download_data(api, project_id=project.id, group=group, version=version, generator=generator,
+                  output_path=data_path, concept_list=concept_list, skip_image_download=skip_image_download,
+                  save_score=save_score, cifar_size=cifar_size, voc=voc, coco=coco, cifar=cifar)
 
 
 @cli.command(name="assign", help='Assign concepts and/or labels to clusters')
