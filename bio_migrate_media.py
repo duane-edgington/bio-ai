@@ -32,23 +32,24 @@ def upload_and_create_media(api, project_id: int, type_id: int, media_id:int, im
 
 if __name__ == '__main__':
 
+    backup_path = Path.cwd()
     start_time = time.time()
     create_logger_file(Path.cwd(), 'migrate_media')
 
     try:
         # Connect to the database apis
-        load_dotenv('.env.digits')
-        api_remote = init_api()
+        load_dotenv('.env')
+        api = init_api()
 
         # Find the project
-        project = find_project(api_remote, DEFAULT_PROJECT)
+        project = find_project(api, DEFAULT_PROJECT)
         info(f'Found project id: {project.name} for project {DEFAULT_PROJECT}')
 
         # Get all the media in this project
-        num_media = api_remote.get_media_count(project=project.id)
+        num_media = api.get_media_count(project=project.id)
         info(f'Found {num_media} media in project {project.name}')
 
-        media = api_remote.get_media_list(project.id)
+        media = api.get_media_list(project.id)
 
         # Get all the unique media names
         media_names = set([m.name for m in media])
@@ -61,10 +62,6 @@ if __name__ == '__main__':
                 media_copy.append(m)
                 media_names.remove(m.name)
 
-        # Get the image type
-        load_dotenv('.env')
-        api = init_api()
-
         media_types = api.get_media_type_list(project.id)
         image_type = None
         for t in media_types:
@@ -72,30 +69,18 @@ if __name__ == '__main__':
                 image_type = t.id
                 break
 
-
         # Iterate through the media and import them to the new server which should have the same media ids
-        # Work in a temporary directory
-        with tempfile.TemporaryDirectory() as out_path:
-            info(f'Using temporary directory: {out_path}')
+        for m in media_copy:
+            info(f'Importing media id: {m.id} with name: {m.name}')
 
-            # Iterate through the media and import them to the new server which should have the same media ids
-            for m in media_copy:
-                info(f'Importing media id: {m.id} with name: {m.name}')
+            image_in_path = backup_path / m.name
 
-                # Download the media
-                image_out_path = Path(out_path) / m.name
+            # Upload the media
+            # Keep video_reference_uuid and index_elapsed_time_millis the same from the original media
+            attributes = {'video_reference_uuid': m.attributes['video_reference_uuid'],
+                            'index_elapsed_time_millis': m.attributes['index_elapsed_time_millis']}
 
-                for progress in tator.util.download_media(api_remote, m, image_out_path.as_posix()):
-                    debug(f"{m.id} download progress: {progress}%")
-
-                # Upload the media
-                # Keep video_reference_uuid and index_elapsed_time_millis the same from the original media
-                attributes = {'video_reference_uuid': m.attributes['video_reference_uuid'],
-                                'index_elapsed_time_millis': m.attributes['index_elapsed_time_millis']}
-
-                upload_and_create_media(api, project.id, image_type, m.id, image_out_path, attributes)
-
-                image_out_path.unlink()
+            upload_and_create_media(api, project.id, image_type, m.id, image_in_path, attributes)
 
 
     except Exception as e:
