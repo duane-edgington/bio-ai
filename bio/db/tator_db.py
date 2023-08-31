@@ -151,9 +151,11 @@ def download_data(api: tator.api,
         if voc:
             voc_path = output_path / 'voc'
             voc_path.mkdir(exist_ok=True)
+            info(f'Creating VOC files in {voc_path}')
         if coco:
             coco_path = output_path / 'coco'
             coco_path.mkdir(exist_ok=True)
+            info(f'Creating COCO files in {coco_path}')
 
         localizations = []
         inc = min(5000, num_records)
@@ -214,14 +216,24 @@ def download_data(api: tator.api,
             for media in all_media:
                 out_path = media_path / media.name
                 if not out_path.exists():
-                    for progress in tator.util.download_media(api, media, out_path):
-                        debug(f"{media.name} download progress: {progress}%")
+                    info(f'Downloading {media.name} to {out_path}')
+                    num_tries = 0
+                    success = False
+                    while num_tries < 3 and not success:
+                        try:
+                            for progress in tator.util.download_media(api, media, out_path):
+                                debug(f"{media.name} download progress: {progress}%")
+                            success = True
+                        except Exception as e:
+                            err(e)
+                            num_tries += 1
+                    if num_tries == 3:
+                        err(f'Could not download {media.name}')
+                        exit(-1)
 
         # Create YOLO, and optionally COCO, CIFAR, or VOC formatted files
         info(f'Creating YOLO files in {label_path}')
         json_content = {}
-        if voc:
-            info(f'Creating VOC files in {voc_path}')
 
         for media_name in media_names:
 
