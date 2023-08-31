@@ -1,7 +1,7 @@
 [![MBARI](https://www.mbari.org/wp-content/uploads/2014/11/logo-mbari-3b.png)](http://www.mbari.org)
 [![Python](https://img.shields.io/badge/language-Python-blue.svg)](https://www.python.org/downloads/)
 
-*bio-ai* is a command line tool to run models and manage data, etc. for the MBARI BioDiversity project.
+*bio-ai* is a command line tool to run models and manage data for the MBARI BioDiversity project.
 
 ## Installation 
 
