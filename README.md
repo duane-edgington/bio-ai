@@ -12,12 +12,12 @@ The fastest way to get started is to use the Anaconda environment.  This will cr
 git clone http://github.com/mbari-org/bio-ai.git
 cd bio-ai
 conda env create 
-conda activate bio
+conda activate bio-ai
 ```
 
 ## Commands
 
-* bio download --help` - Download data for training an object detection model 
+* python bio.py download --help` - Download data for training an object detection model 
 * `bio -h` - Print help message and exit.
   
 ## Usage
