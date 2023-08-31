@@ -1,6 +1,6 @@
 *.txt
 *.log
-.env
+*.env
 
 # data
 data/

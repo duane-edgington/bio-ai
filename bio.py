@@ -1,3 +1,7 @@
+# bio-ai, Apache-2.0 license
+# Filename: bio/bio.py
+# Description: run bio-ai commands to run models, download data, etc.
+
 import time
 
 from dotenv import load_dotenv
@@ -5,8 +9,8 @@ import click as click
 from pathlib import Path
 
 from bio import __version__
-from bio.db.tator import init_api, download_data, find_project, assign_cluster, delete, \
-    assign_iou, assign_nms, classify
+from bio.db.tator_db import init_api, download_data, find_project, delete
+from bio.db.ml import classify, assign_cluster, assign_iou, assign_nms
 from bio.logger import create_logger_file, info, err
 
 # Default values

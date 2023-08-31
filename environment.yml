@@ -1,4 +1,4 @@
-name: biodiversity-model-trainer
+name: bio-ai
 channels:
   - defaults
   - conda-forge

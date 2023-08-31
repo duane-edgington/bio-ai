@@ -1,3 +1,7 @@
+# bio-ai, Apache-2.0 license
+# Filename: bio/data/generator.py
+# Description: Creates a CIFAR formatted dataset from a list of media and localizations
+
 import multiprocessing
 import tempfile
 import numpy as np

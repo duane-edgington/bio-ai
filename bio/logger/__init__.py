@@ -1,26 +1,12 @@
-# Path: vars_labelbot/logger/__init__.py
-# !/usr/bin/env python
-__author__ = "Danelle Cline"
-__copyright__ = "Copyright 2023, MBARI"
-__credits__ = ["MBARI"]
-__license__ = "GPL"
-__maintainer__ = "Danelle Cline"
-__email__ = "dcline at mbari.org"
-__doc__ = '''
-
-Logger for biodiversity-modeltrainer. Logs to both a file and the console.
-Creates a global data frame to store a summary of the results.
-
-@author: __author__
-@status: __status__
-@license: __license__
-'''
+# bio-ai, Apache-2.0 license
+# Filename: bio/logger/__init__.py
+# Description: Logger for bio-ai
 
 import logging
 from pathlib import Path
 from datetime import datetime as dt
 
-LOGGER_NAME = "BIOMODELTRAINER"
+LOGGER_NAME = "BIO-AI"
 DEBUG = True
 
 

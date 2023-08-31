@@ -1,23 +1,11 @@
-# !/usr/bin/env python
-__author__ = "Danelle Cline"
-__copyright__ = "Copyright 2023, MBARI"
-__credits__ = ["MBARI"]
-__license__ = "GPL"
-__maintainer__ = "Danelle Cline"
-__email__ = "dcline at mbari.org"
-__doc__ = '''
+# bio-ai, Apache-2.0 license
+# Filename: bio/model/FastAPIBaseModel.py
+# Description: Model classes for FastAPI served models
 
-Model classes for FastAPI served models
-
-@author: __author__
-@status: __status__
-@license: __license__
-'''
-from bio.logger import info, debug, err
-from requests import post
-import os
+from bio.logger import info, debug
 import io
 from PIL import Image
+
 
 class FastAPIBaseModel:
 
@@ -32,14 +20,9 @@ class FastAPIBaseModel:
         info(f'Initializing FastAPIBaseModel with endpoint: {endpoint}')
         self.endpoint = endpoint
 
-    def predict_bytes(self, image_bytes: bytes) -> dict:
-        """
-        Predict on an image
-        :param image_bytes: Image bytes
-        :return: Predictions in JSON format
-        """
-        response = post(self.endpoint, files=[('file', image_bytes)])
-        return response.json()
+    def predict_bytes(self, image_bytes: bytes, threshold: float, top_n: int) -> dict:
+        pass
+
 
 class YOLOv5(FastAPIBaseModel):
 

@@ -1,9 +1,7 @@
-![license-GPL](https://img.shields.io/badge/license-GPL-blue)
+[![MBARI](https://www.mbari.org/wp-content/uploads/2014/11/logo-mbari-3b.png)](http://www.mbari.org)
+[![Python](https://img.shields.io/badge/language-Python-blue.svg)](https://www.python.org/downloads/)
 
-# About
-
-*biodiversity-model-trainer*  a command line tool for developing machine learning models for 
-the MBARI BioDiversity project.
+*bio-ai* is a command line tool to run models and manage data, etc. for the MBARI BioDiversity project.
 
 ## Installation 
 
@@ -11,8 +9,8 @@ the MBARI BioDiversity project.
 
 The fastest way to get started is to use the Anaconda environment.  This will create a conda environment called *bio*.
 ```shell
-git clone http://github.com/mbari-org/biodiversity-model-trainer.git
-cd biodiversity-model-trainer
+git clone http://github.com/mbari-org/bio-ai.git
+cd bio-ai
 conda env create 
 conda activate bio
 ```
@@ -27,7 +25,7 @@ conda activate bio
 Setup a .env file with the following contents:
 
 ```ini
-TATOR_API_HOST=http://DiGiTS-Dev-Box-Fish.shore.mbari.org
+TATOR_API_HOST=http:/mantis.shore.mbari.org
 TATOR_API_TOKEN=15afoobaryouraccesstoken
 ```
 
@@ -62,7 +60,7 @@ This should be done by an AWS administrator if you are not already setup.
 If you want to download data also in the PASCAL VOC format, use the optional --voc flag, e.g.
 
 ```shell
-python bio.py download --generator vars-labelbot --version Baseline --concepts "Krill molt, Eusergestes similis" --voc
+python bio.py download --generator cluster --version Baseline --concepts "Krill molt, Eusergestes similis" --voc
 ```
 
 Download data format is saved to a directory with the following structure e.g. for the Baseline version:
@@ -149,17 +147,23 @@ Setup AWS accounting by setting up a .ini file with the following contents:
 
 e.g. ~/.aws/bio.ini
 ```ini
+[docker]
+yolov5_container = mbari/deepsea-yolov5:1.1.2
+strongsort_container = mbari/strongsort-yolov5:6f35769
+
 [aws]
-sagemaker_arn = arn:aws:iam::975513124282:role/DeepSeaAI
-yolov5_ecr = mbari/deepsea-yolov5:1.1.2
-deepsort_ecr = mbari/deepsort-yolov5:1.3.5
-strongsort_ecr = mbari/strongsort-yolov5:1.5.0
-yolov5_model_s3 = s3://902005-public/models/yolov5x_mbay_benthic_model.tar.gz
-deepsort_track_config_s3 = s3://902005-public/models/deep_sort_benthic.yaml
-strongsort_track_config_s3 = s3://902005-public/models/strong_sort_benthic.yaml
+account_id = 548531997526
+sagemaker_arn = arn:aws:iam::548531997526:role/DeepSeaAI
+model = s3://deepsea-ai-548531997526-models/yolov5x_mbay_benthic_model.tar.gz
+track_config = s3://deepsea-ai-548531997526-track-conf/strong_sort_benthic.yaml
+videos = s3://deepsea-ai-548531997526-videos
+models = s3://deepsea-ai-548531997526-models
+tracks = s3://deepsea-ai-548531997526-tracks
+
 [database]
 site = http://deepsea-ai.shore.mbari.org
 gql = %(site)s/graphql
+
 [tags]
 organization = mbari
 project_number = 901103
