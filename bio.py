@@ -1,6 +1,6 @@
 # bio-ai, Apache-2.0 license
 # Filename: bio/bio.py
-# Description: run bio-ai commands to run models, download data, etc.
+# Description: run bio-ai commands to run detection/classification models, download data, etc.
 
 import time
 
@@ -10,7 +10,7 @@ from pathlib import Path
 
 from bio import __version__
 from bio.db.tator_db import init_api, download_data, find_project, delete
-from bio.db.ml import classify, assign_cluster, assign_iou, assign_nms
+from bio.db.ml import classify, assign_cluster, assign_iou, assign_nms, detect
 from bio.logger import create_logger_file, info, err
 
 # Default values
@@ -19,6 +19,7 @@ DEFAULT_BASE_DIR = Path(__file__).parent.as_posix()
 
 DEFAULT_VERSION = 'Baseline'
 DEFAULT_PROJECT = '901103-biodiversity'
+
 
 @click.group(context_settings={'help_option_names': ['-h', '--help']})
 @click.version_option(
@@ -44,7 +45,8 @@ def cli():
 @click.option('--cifar', is_flag=True, help='True if export as CIFAR dataset, False if not.')
 @click.option('--cifar-size', default=32, help='Size of CIFAR images.')
 @click.option('--save-score', is_flag=True, help='True to save score in YOLO output, False if not.')
-@click.option('--skip-image-download', is_flag=True, help='Skip image download, only download annotations. CIFAR requires images.')
+@click.option('--skip-image-download', is_flag=True,
+              help='Skip image download, only download annotations. CIFAR requires images.')
 def download(base_dir: str, group: str, version: str, generator: str, concepts: str, voc: bool, cifar: bool, coco: bool,
              cifar_size: int, save_score: bool, skip_image_download: bool):
     create_logger_file(Path.cwd(), 'download')
@@ -102,8 +104,10 @@ def assign(group: str, version: str, generator: str, clusters: str, concept: str
 @click.option('--version', default=DEFAULT_VERSION, help=f'Dataset version to assign. Defaults to {DEFAULT_VERSION}.')
 @click.option('--exclude', type=str, help='(Optional) comma separated list of concepts to exclude.')
 @click.option('--include', type=str, help='(Optional) comma separated list of concepts to include.')
-@click.option('--min-iou', type=float, default=0.5, help='(Optional)  minimum iou to filter localizations between 0-1. Defaults to 0.5')
-@click.option('--min-score', type=float, default=0.2, help='(Optional)  minimum score to filter localizations between 0-1. Defaults to 0.2')
+@click.option('--min-iou', type=float, default=0.5,
+              help='(Optional)  minimum iou to filter localizations between 0-1. Defaults to 0.5')
+@click.option('--min-score', type=float, default=0.2,
+              help='(Optional)  minimum score to filter localizations between 0-1. Defaults to 0.2')
 @click.option('--dry-run', is_flag=True, help='Dry run, do not delete')
 def assignNMS(group: str, version: str, exclude: str, include: str, min_iou: float, min_score: float, dry_run: bool):
     create_logger_file(Path.cwd(), 'assign-nms')
@@ -120,7 +124,8 @@ def assignNMS(group: str, version: str, exclude: str, include: str, min_iou: flo
         include = include.split(',')
     if exclude:
         exclude = exclude.split(',')
-    assign_nms(api, project_id=project.id, version=version, group=group, exclude=exclude, include=include, dry_run=dry_run, min_score=min_score, min_iou=min_iou)
+    assign_nms(api, project_id=project.id, version=version, group=group, exclude=exclude, include=include,
+               dry_run=dry_run, min_score=min_score, min_iou=min_iou)
 
 
 @cli.command(name="delete", help='Delete clusters, concepts or labels')
@@ -131,7 +136,7 @@ def assignNMS(group: str, version: str, exclude: str, include: str, min_iou: flo
 @click.option('--concepts', type=str, help='Comma separated list of concepts to delete')
 @click.option('--labels', type=str, help='Comma separated list of labels to delete')
 @click.option('--dry-run', is_flag=True, help='Dry run, do not delete')
-def delete_bulk(group: str, version: str, generator: str, clusters: str, concepts: str, labels:str, dry_run: bool):
+def delete_bulk(group: str, version: str, generator: str, clusters: str, concepts: str, labels: str, dry_run: bool):
     create_logger_file(Path.cwd(), 'delete')
 
     # Connect to the database api
@@ -144,15 +149,15 @@ def delete_bulk(group: str, version: str, generator: str, clusters: str, concept
     if clusters:
         cluster_list = clusters.split(',')
         delete(api, project_id=project.id, version=version, generator=generator, group=group,
-                       clusters=cluster_list, dry_run=dry_run)
+               clusters=cluster_list, dry_run=dry_run)
     if concepts:
         concept_list = concepts.split(',')
         delete(api, project_id=project.id, version=version, generator=generator, group=group,
-                       concepts=concept_list, dry_run=dry_run)
+               concepts=concept_list, dry_run=dry_run)
     if labels:
         label_list = labels.split(',')
         delete(api, project_id=project.id, version=version, generator=generator, group=group,
-                       labels=label_list, dry_run=dry_run)
+               labels=label_list, dry_run=dry_run)
 
     # if deleting everything, then delete the group
     if not clusters and not concepts and not labels:
@@ -188,9 +193,9 @@ def iou(group_source: str, group_target: str, version: str, conf: float):
 @click.option('--base-dir', default=DEFAULT_BASE_DIR, help='Base directory to save all data to.')
 @click.option('--group', help='Group name, e.g. VB250')
 @click.option('--version', default=DEFAULT_VERSION, help=f'Dataset version to assign. Defaults to {DEFAULT_VERSION}.')
-@click.option('--generator',  help='Generator name, e.g. vars-labelbot or vars-annotation')
-@click.option('--model-url',  help='Url of the model to use for classification.')
-def assign(group: str, version: str, generator: str, model_url: str, base_dir:str):
+@click.option('--generator', help='Generator name, e.g. vars-labelbot or vars-annotation')
+@click.option('--model-url', help='Url of the model to use for classification.')
+def assign_classify(group: str, version: str, generator: str, model_url: str, base_dir: str):
     create_logger_file(Path.cwd(), 'classify')
 
     # Connect to the database api
@@ -200,7 +205,35 @@ def assign(group: str, version: str, generator: str, model_url: str, base_dir:st
     project = find_project(api, DEFAULT_PROJECT)
     info(f'Found project id: {project.name} for project {DEFAULT_PROJECT}')
 
-    classify(api, project_id=project.id, version=version, generator=generator, group=group, model_url=model_url, output_path=Path(base_dir))
+    classify(api, project_id=project.id, version=version, generator=generator, group=group, model_url=model_url,
+             output_path=Path(base_dir))
+
+
+@cli.command(name="detect", help='Detect concepts in image urls')
+@click.option('--base-url', help='Base url all images are in.')
+@click.option('--group', help='Group name, e.g. VB250')
+@click.option('--version', default=DEFAULT_VERSION, help=f'Dataset version to assign. Defaults to {DEFAULT_VERSION}.')
+@click.option('--generator', help='Generator name, e.g. vars-labelbot or vars-annotation', default='megadetector')
+@click.option('--model-url', help='Url of the model to use for classification.', default='http://fasta-fasta-1d0o3gwgv046e-143598223.us-west-2.elb.amazonaws.com/predict')
+def assign_detect(group: str, version: str, generator: str, model_url: str, base_url: str):
+    create_logger_file(Path.cwd(), 'detect')
+
+    # Connect to the database api
+    api = init_api()
+
+    # Find the project
+    project = find_project(api, DEFAULT_PROJECT)
+    info(f'Found project id: {project.name} for project {DEFAULT_PROJECT}')
+
+    # Find the media type
+    media_types = api.get_media_type_list(project.id)
+
+    for m in media_types:
+        if m.dtype == "image":
+            image_type = m.id
+            detect(api, image_type=image_type, project_id=project.id, version=version, generator=generator, group=group,
+                   model_url=model_url, base_url=base_url)
+            break
 
 
 if __name__ == '__main__':

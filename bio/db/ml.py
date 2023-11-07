@@ -7,6 +7,7 @@ import io
 import multiprocessing
 import pickle
 import tempfile
+import requests
 from pathlib import Path
 from typing import List
 
@@ -16,8 +17,9 @@ from PIL import Image
 from torchvision.ops import nms
 
 from bio.db.tator_db import gen_localization
+from bio.db.url_utils import is_valid_url, extract_image_links
 from bio.logger import info, warn, err, exception, debug
-from bio.model import KClassify
+from bio.model import KClassify, YOLOv5
 
 
 def predict_classify_top1(temp_path: Path,
@@ -65,6 +67,103 @@ def predict_classify_top1(temp_path: Path,
         temp_path = temp_path / f'{loc.id}.pkl'
         with temp_path.open('wb') as f:
             pickle.dump(results, f)
+
+
+def detect(api: tator.api,
+           project_id: int,
+           image_type: int,
+           group: str,
+           version: str,
+           generator: str,
+           image_url: str,
+           model_url: str):
+    """
+    Assign localizations to a class based on a detection model.
+    :param api: tator.api
+    :param project_id: project id
+    :param image_type: image type id
+    :param group: group name to assign classifications to
+    :param version: version tag to assign classifications to
+    :param generator: generator name, e.g. 'vars-labelbot' or 'vars-annotation'
+    :param image_url: root url images are located at
+    :param model_url: fastai model url
+    """
+
+    detection_model = YOLOv5(model_url)
+
+    if generator:
+        attribute_filter = [f"generator::{generator}"]
+    if group:
+        attribute_filter += [f"group::{group}"]
+    if version:
+        attribute_filter += [f"version::{version}"]
+
+    attribute_filter += ['Label::Unknown']
+
+    # Extract image links
+    result = extract_image_links(image_url)
+    if not result:
+        err(f'Could not extract image links from {image_url}')
+        return
+
+    image_urls = result['image_urls']
+
+    for image_url in image_urls:
+
+        if not is_valid_url(image_url):
+            err(f'Could not find image {image_url}')
+            return
+
+        # Download the media to a temp directory
+        with tempfile.TemporaryDirectory() as temp_dir:
+
+            # Download the media
+            media_path = Path(temp_dir) / 'media.jpg'
+            with media_path.open('wb') as f:
+                f.write(requests.get(image_url).content)
+
+            # Run the detection model on the media
+            detections = detection_model.predict_file(media_path, threshold=0.1)
+
+            # Load the results
+            if len(detections) == 0:
+                info(f'No detections found for {image_url}')
+                return
+
+            # upload the image url reference
+            info(f'Importing image url {image_url}')
+            error = False
+            try:
+                for progress, response in tator.util.import_media(api,
+                                                                  image_type,
+                                                                  image_url,
+                                                                  attributes={},
+                                                                  fname=Path(image_url).name):
+                    info(f"Creating progress: {progress}%")
+                    info(f'Uploading {image_url}')
+            except Exception as e:
+                err(f'Error: {e}')
+                if 'already exists' in str(e).lower():
+                    info(f'Image {image_url} already exists')
+                if 'not found' in str(e).lower():
+                    err(f'Image {image_url} not found')
+                    error = True
+
+            if error:
+                return
+
+            # Get the media id
+            media = api.get_media_list(project=project_id, url=image_url)[0]
+
+            # Load the detections
+            info(f'Loading {len(detections)} detections')
+            for d in detections:
+                loc = gen_localization(d, media.id, project_id, group, version, generator)
+
+                info(f'Loading localization {loc}')
+                api.create_localization(project=project_id, localization_spec=loc)
+
+        info(f'Loaded {len(detections)} detections')
 
 
 def classify(api: tator.api,
@@ -450,7 +549,8 @@ def assign_nms(api: tator.api,
     num_records = 0
     if include:
         for i in include:
-            num_records += api.get_localization_count(project=project_id, attribute=attribute_filter + [f"concept::{i}"])
+            num_records += api.get_localization_count(project=project_id,
+                                                      attribute=attribute_filter + [f"concept::{i}"])
     else:
         num_records = api.get_localization_count(project=project_id, attribute=attribute_filter)
 
@@ -466,9 +566,9 @@ def assign_nms(api: tator.api,
         for i in include:
             info(f'Query records for {i}')
             new_records = api.get_localization_list(project=project_id,
-                                                      attribute=attribute_filter + [f"concept::{i}"],
-                                                      start=0,
-                                                      stop=num_records)
+                                                    attribute=attribute_filter + [f"concept::{i}"],
+                                                    start=0,
+                                                    stop=num_records)
             if len(new_records) == 0:
                 break
             records += new_records
@@ -476,9 +576,9 @@ def assign_nms(api: tator.api,
         for start in range(0, num_records, inc):
             info(f'Query records {start} to {start + 5000}')
             new_records = api.get_localization_list(project=project_id,
-                                                      attribute=attribute_filter,
-                                                      start=start,
-                                                      stop=start + 5000)
+                                                    attribute=attribute_filter,
+                                                    start=start,
+                                                    stop=start + 5000)
             if len(new_records) == 0:
                 break
             records += new_records
@@ -489,8 +589,8 @@ def assign_nms(api: tator.api,
         # Remove localizations if exclude is set
         if exclude:
             filtered_records = [l for l in records if
-                                 l.attributes['concept'] not in exclude and
-                                 l.attributes['Label'] not in exclude]
+                                l.attributes['concept'] not in exclude and
+                                l.attributes['Label'] not in exclude]
         else:
             filtered_records = records
 
@@ -572,4 +672,5 @@ def assign_nms(api: tator.api,
             response = api.create_localization_list(project_id, boxes[b:b + 5000])
             debug(response)
 
-    info(f'Created {num_created} total localizations out of {num_records} in {num_media} frames in group {group_assign}. Total Unknown: {num_unknown}. Total Revisit: {num_revisit}')
+    info(
+        f'Created {num_created} total localizations out of {num_records} in {num_media} frames in group {group_assign}. Total Unknown: {num_unknown}. Total Revisit: {num_revisit}')

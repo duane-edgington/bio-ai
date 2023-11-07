@@ -8,3 +8,5 @@ pillow~=9.5.0
 torch
 torchvision
 pascal-voc-writer>=0.1.4
+bs4
+requests
