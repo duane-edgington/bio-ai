@@ -3,6 +3,7 @@
 # Description: Model classes for FastAPI served models
 
 from bio.logger import info, debug
+from requests import post
 import io
 from PIL import Image
 
@@ -20,8 +21,9 @@ class FastAPIBaseModel:
         info(f'Initializing FastAPIBaseModel with endpoint: {endpoint}')
         self.endpoint = endpoint
 
-    def predict_bytes(self, image_bytes: bytes, threshold: float, top_n: int) -> dict:
-        pass
+    def predict_bytes(self, image_bytes: bytes, threshold: float, top_n: int = 1) -> dict:
+        response = post(self.endpoint, files=[('file', image_bytes)])
+        return response.json()
 
 
 class YOLOv5(FastAPIBaseModel):
@@ -40,7 +42,7 @@ class YOLOv5(FastAPIBaseModel):
         image.close()
 
         # Filter results by confidence
-        results = [result for result in results['result'] if result['confidence'] >= threshold]
+        results = [result for result in results if result['confidence'] >= threshold]
 
         return results
 
@@ -51,7 +53,7 @@ class KClassify(FastAPIBaseModel):
         """Keras Classify model"""
         super().__init__(endpoint)
 
-    def predict_bytes(self, image_bytes: bytes, threshold: float, top_n: int) -> dict:
+    def predict_bytes(self, image_bytes: bytes, threshold: float, top_n: int = 1) -> dict:
         """
         Predict image
         :param image_bytes: image bytes

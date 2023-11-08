@@ -225,17 +225,35 @@ def assign_detect(group: str, version: str, generator: str, model_url: str, base
     project = find_project(api, DEFAULT_PROJECT)
     info(f'Found project id: {project.name} for project {DEFAULT_PROJECT}')
 
+    # Get the localization type
+    localization_types = api.get_localization_type_list(project.id)
+
+    # the box type is the one with the name 'Boxes'
+    box_type = None
+    image_type = None
+    for l in localization_types:
+        if l.name == 'Boxes':
+            box_type = l.id
+            break
+
+    # Fail if we could not find the box type
+    if box_type is None:
+        info(
+            f'Could not find localization type "Boxes" in project {project.name}.'
+            f' Do you have a localization type "Boxes" in the project {project}?')
+        return
+
     # Find the media type
     media_types = api.get_media_type_list(project.id)
 
     for m in media_types:
         if m.dtype == "image":
             image_type = m.id
-            detect(api, image_type=image_type, project_id=project.id, version=version, generator=generator, group=group,
-                   model_url=model_url, base_url=base_url)
             break
 
-
+    if image_type and box_type:
+        detect(api, image_type=image_type, box_type=box_type, project_id=project.id, version=version, generator=generator, group=group,
+               model_url=model_url, base_image_url=base_url)
 if __name__ == '__main__':
     try:
         load_dotenv('.env')

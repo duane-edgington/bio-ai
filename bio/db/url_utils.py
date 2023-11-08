@@ -26,6 +26,8 @@ def extract_image_links(url):
 
         # Extract the href attribute values
         image_links = [link.get('href') for link in links]
+        # Prepend the base URL if the links are relative
+        image_links = [link if link.startswith('http') else url + link for link in image_links]
         return image_links
     else:
         print("Failed to fetch the URL.")

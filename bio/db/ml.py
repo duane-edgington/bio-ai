@@ -70,12 +70,13 @@ def predict_classify_top1(temp_path: Path,
 
 
 def detect(api: tator.api,
+           box_type: int,
            project_id: int,
            image_type: int,
            group: str,
            version: str,
            generator: str,
-           image_url: str,
+           base_image_url: str,
            model_url: str):
     """
     Assign localizations to a class based on a detection model.
@@ -85,28 +86,17 @@ def detect(api: tator.api,
     :param group: group name to assign classifications to
     :param version: version tag to assign classifications to
     :param generator: generator name, e.g. 'vars-labelbot' or 'vars-annotation'
-    :param image_url: root url images are located at
+    :param base_image_url: root url images are located at
     :param model_url: fastai model url
     """
 
     detection_model = YOLOv5(model_url)
 
-    if generator:
-        attribute_filter = [f"generator::{generator}"]
-    if group:
-        attribute_filter += [f"group::{group}"]
-    if version:
-        attribute_filter += [f"version::{version}"]
-
-    attribute_filter += ['Label::Unknown']
-
     # Extract image links
-    result = extract_image_links(image_url)
-    if not result:
-        err(f'Could not extract image links from {image_url}')
+    image_urls = extract_image_links(base_image_url)
+    if not image_urls:
+        err(f'Could not extract image links from {base_image_url}')
         return
-
-    image_urls = result['image_urls']
 
     for image_url in image_urls:
 
@@ -121,6 +111,10 @@ def detect(api: tator.api,
             media_path = Path(temp_dir) / 'media.jpg'
             with media_path.open('wb') as f:
                 f.write(requests.get(image_url).content)
+
+            # Get the image size
+            im = Image.open(media_path)
+            width, height = im.size
 
             # Run the detection model on the media
             detections = detection_model.predict_file(media_path, threshold=0.1)
@@ -153,15 +147,43 @@ def detect(api: tator.api,
                 return
 
             # Get the media id
-            media = api.get_media_list(project=project_id, url=image_url)[0]
+            media = api.get_media_list(project=project_id, name=Path(image_url).name)
+
+            if len(media) == 0:
+                err(f'Could not find media {image_url}')
+                return
+
+            media = media[0]
 
             # Load the detections
             info(f'Loading {len(detections)} detections')
+            locs = []
             for d in detections:
-                loc = gen_localization(d, media.id, project_id, group, version, generator)
+                attributes = {
+                    'Label': d['class_name'],
+                    'score': d['confidence'],
+                    'concept': d['class_name'],
+                    'generator': generator,
+                    'group': group,
+                    'cluster': -1
+                }
 
-                info(f'Loading localization {loc}')
-                api.create_localization(project=project_id, localization_spec=loc)
+                out = {
+                    'type': box_type,
+                    'media_id': media.id,
+                    'project': project_id,
+                    'x': d['x'] / width,
+                    'y': d['y'] / height,
+                    'width': d['width'] / width,
+                    'height': d['height'] / height,
+                    'frame': 0,
+                    'attributes': attributes,
+                }
+
+                locs.append(out)
+                info(f'Loading localization {out}')
+            if len(locs) > 0:
+                api.create_localization_list(project_id, locs)
 
         info(f'Loaded {len(detections)} detections')
 
