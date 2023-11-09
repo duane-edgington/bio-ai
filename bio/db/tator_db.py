@@ -127,7 +127,10 @@ def download_data(api: tator.api,
         if generator:
             attribute_filter = [f"generator::{generator}"]
         if group:
-            attribute_filter += [f"group::{group}"]
+            if attribute_filter:
+                attribute_filter += [f"group::{group}"]
+            else:
+                attribute_filter = [f"group::{group}"]
         if concept_list:
             for c in concept_list:
                 num_records += api.get_localization_count(project=project_id, attribute=attribute_filter + [f"concept::{c}"])
