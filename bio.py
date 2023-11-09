@@ -209,7 +209,7 @@ def assign_classify(group: str, version: str, generator: str, model_url: str, ba
              output_path=Path(base_dir))
 
 
-@cli.command(name="detect", help='Detect concepts in image urls')
+@cli.command(name="detect", help='Detect concepts in image urls and load into database')
 @click.option('--base-url', help='Base url all images are in.')
 @click.option('--group', help='Group name, e.g. VB250')
 @click.option('--version', default=DEFAULT_VERSION, help=f'Dataset version to assign. Defaults to {DEFAULT_VERSION}.')

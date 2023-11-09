@@ -1,13 +1,13 @@
 [![MBARI](https://www.mbari.org/wp-content/uploads/2014/11/logo-mbari-3b.png)](http://www.mbari.org)
 [![Python](https://img.shields.io/badge/language-Python-blue.svg)](https://www.python.org/downloads/)
 
-*bio-ai* is a command line tool to run models and manage data for the MBARI BioDiversity project.
+*bio-ai* is a command line tool to run workflows for the MBARI BioDiversity project.
 
 ## Installation 
 
 ### Create the Anaconda environment
 
-The fastest way to get started is to use the Anaconda environment.  This will create a conda environment called *bio*.
+The fastest way to get started is to use the Anaconda environment.  This will create a conda environment called *bio-ai*.
 ```shell
 git clone http://github.com/mbari-org/bio-ai.git
 cd bio-ai
@@ -33,7 +33,7 @@ TATOR_API_TOKEN=15afoobaryouraccesstoken
 
 Download data for model training in a format the [deepsea-ai module expects](https://docs.mbari.org/deepsea-ai/data/) with the download command, e.g.
 
-Note - if your leave of the concepts option, the default is to fetch **all** concepts.
+*If your leave off the concepts option*, the default is to fetch **all** concepts.
 
 ```shell
 python bio.py download --generator vars-labelbot --version Baseline --concepts "Krill molt, Eusergestes similis"
@@ -126,62 +126,45 @@ plt.show()
  
 ![ Image link ](img/atolla_cifar128.png)
 
+## Object Detection Inference
+
+Running a detection model that was trained with the  [deepsea-ai](https://github.com/mbari-org/deepsea-ai) module.
+Uses the FastAPI framework to serve the model.  The model is served on port 8000 by default.
+See [https://github.com/mbari-org/fastapi-yolov5](https://github.com/mbari-org/fastapi-yolov5) for details on
+setting up the model server.
+
+Once that is setup, run the following command to run the detections against images served from a URL.
+For example, to run detections 
+ - against the model at http://fasta-fasta-1d0o3gwgv046e-143598223.us-west-2.elb.amazonaws.com/predict
+ - on all images available at http://digits-dev-box-fish.shore.mbari.org:8080/Ctenophora_sp_A_aug/,
+ - then store them in the CTENOPHORA_SP_A_AUG group
+
+```shell
+python bio.py detect -detect --group CTENOPHORA_SP_A_AUG --base-url http://digits-dev-box-fish.shore.mbari.org:8080/Ctenophora_sp_A_aug/ --model-url http://fasta-fasta-1d0o3gwgv046e-143598223.us-west-2.elb.amazonaws.com/predict
+```
+ 
 
 ## Object Detection Training
 
-Training an object detection model requires the [deepsea-ai](https://github.com/mbari-org/deepsea-ai) module
+Downloaded data can be used to traing an object detection model. Setup and training is simplified with the [deepsea-ai](https://github.com/mbari-org/deepsea-ai) module,
+which is designed to simplify the process of training and running object detection models on AWS.
  
 
-### Setup the deepsea-ai module
+### Setup  
 
-The deepsea-ai module uses AWS for training and inference.  Add the appropriate AWS credentials to your environment using the aws command line tool, e.g.
-to setup a profile specific to this project, e.g. 901103-bio
+Add the appropriate AWS credentials to your environment using the aws command line tool, e.g. to setup a profile specific to this project, e.g. 901103-bio
 
 ```
 pip install awscli
+pip install deepsea-ai
 aws configure --profile 901103-bio
 ``` 
 
-Setup AWS accounting by setting up a .ini file with the following contents:
-975513124282 is the "901103 Biodiversity and Biooptics" MBARI project AWS account number
-
-e.g. ~/.aws/bio.ini
-```ini
-[docker]
-yolov5_container = mbari/deepsea-yolov5:1.1.2
-strongsort_container = mbari/strongsort-yolov5:6f35769
-
-[aws]
-account_id = 548531997526
-sagemaker_arn = arn:aws:iam::548531997526:role/DeepSeaAI
-model = s3://deepsea-ai-548531997526-models/yolov5x_mbay_benthic_model.tar.gz
-track_config = s3://deepsea-ai-548531997526-track-conf/strong_sort_benthic.yaml
-videos = s3://deepsea-ai-548531997526-videos
-models = s3://deepsea-ai-548531997526-models
-tracks = s3://deepsea-ai-548531997526-tracks
-
-[database]
-site = http://deepsea-ai.shore.mbari.org
-gql = %(site)s/graphql
-
-[tags]
-organization = mbari
-project_number = 901103
-stage = prod 
-application = detection
-```
-
-Then run the setup command.  This will setup the appropriate AWS permissions and mirror the images used in the commands
-
-
-```shell
-deepsea-ai setup --mirror --config ~/.aws/bio.ini
-```
----
+Then follow the [installation](https://docs.mbari.org/deepsea-ai/) instructions to prepare for training.
 
 ### Train a model
 
-Now that the data is downloaded, you can train a model.  Train a model by first splitting the data first, e.g.
+Train a model by first splitting the data first, e.g.
 
 **Note** this will randomly split 85% of the data for training, 10% for validation and 5% as a hold out for testing.
 
