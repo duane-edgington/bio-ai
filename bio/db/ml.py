@@ -107,10 +107,14 @@ def detect(api: tator.api,
         # Download the media to a temp directory
         with tempfile.TemporaryDirectory() as temp_dir:
 
-            # Download the media
+            # Download the media as RGB, dropping the alpha channel
             media_path = Path(temp_dir) / 'media.jpg'
             with media_path.open('wb') as f:
                 f.write(requests.get(image_url).content)
+
+            im = Image.open(media_path.as_posix())
+            rgb_im = im.convert('RGB')
+            rgb_im.save(media_path.as_posix())
 
             # Get the image size
             im = Image.open(media_path)
@@ -122,7 +126,7 @@ def detect(api: tator.api,
             # Load the results
             if len(detections) == 0:
                 info(f'No detections found for {image_url}')
-                return
+                continue
 
             # upload the image url reference
             info(f'Importing image url {image_url}')
@@ -144,14 +148,14 @@ def detect(api: tator.api,
                     error = True
 
             if error:
-                return
+                continue
 
             # Get the media id
             media = api.get_media_list(project=project_id, name=Path(image_url).name)
 
             if len(media) == 0:
                 err(f'Could not find media {image_url}')
-                return
+                continue
 
             media = media[0]
 
