@@ -122,7 +122,7 @@ def download_data(api: tator.api,
         info(version)
 
         # TODO: figure out out to get annotations for a specific version
-        attribute_filter = []
+        attribute_filter = None
         num_records = 0
         if generator:
             attribute_filter = [f"generator::{generator}"]
