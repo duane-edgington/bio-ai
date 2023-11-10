@@ -133,9 +133,9 @@ def download_data(api: tator.api,
                 attribute_filter = [f"group::{group}"]
         if concept_list:
             for c in concept_list:
-                num_records += api.get_localization_count(project=project_id, attribute=attribute_filter + [f"concept::{c}"])
+                num_records += api.get_localization_count(project=project_id, attribute_contains=attribute_filter + [f"concept::{c}"])
         else:
-            num_records = api.get_localization_count(project=project_id, attribute=attribute_filter)
+            num_records = api.get_localization_count(project=project_id, attribute_contains=attribute_filter)
 
         info(f'Found {num_records} records for version {version.name} and generator {generator}, group {group} and '
              f"including {concept_list if concept_list else 'everything'} ")
@@ -169,7 +169,7 @@ def download_data(api: tator.api,
                     info(f'Query records {start} to {start + inc} using attribute filter {filter} ')
 
                     new_localizations = api.get_localization_list(project=project_id,
-                                                                  attribute=filter,
+                                                                  attribute_contains=filter,
                                                                   start=start,
                                                                   stop=start + 5000)
 
@@ -182,7 +182,7 @@ def download_data(api: tator.api,
                 info(f'Query records {start} to {start + inc} using attribute filter {attribute_filter}')
 
                 new_localizations = api.get_localization_list(project=project_id,
-                                                              attribute=attribute_filter,
+                                                              attribute_contains=attribute_filter,
                                                               start=start,
                                                               stop=start + inc)
 
