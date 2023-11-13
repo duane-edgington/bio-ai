@@ -203,11 +203,11 @@ def download_data(api: tator.api,
         all_media = get_media(api, project_id, media_ids)
 
         # Get all the unique media names
-        def get_media_stem(media_filename: str) -> str:
-            parts = media_filename.stem.rsplit('.', 1)
+        def get_media_stem(media_path: Path) -> str:
+            parts = media_path.stem.rsplit('.', 1)
             return '.'.join(parts)
 
-        media_names = list(set([get_media_stem(m.name) for m in all_media]))
+        media_names = list(set([get_media_stem(m) for m in all_media]))
 
         # Get all the unique Label attributes and sort them alphabetically
         labels = list(sorted(set([l.attributes['Label'] for l in localizations])))
@@ -245,7 +245,7 @@ def download_data(api: tator.api,
         for media_name in media_names:
 
             # Get the media object
-            media = [m for m in all_media if get_media_stem(m.name) == media_name][0]
+            media = [m for m in all_media if get_media_stem(m) == media_name][0]
 
             # Get all the localizations for this media
             media_localizations = [l for l in localizations if l.media == media.id]
