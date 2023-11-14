@@ -204,7 +204,7 @@ def download_data(api: tator.api,
 
         # Get all the unique media names
         def get_media_stem(media_path: Path) -> str:
-            parts = media_path.stem.rsplit('.', 1)
+            parts = Path(media_path.name).stem.rsplit('.', 1)
             return '.'.join(parts)
 
         media_names = list(set([get_media_stem(m) for m in all_media]))
