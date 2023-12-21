@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from pathlib import Path
 import requests
 import xml.etree.ElementTree as ET
+import PIL
 
 from bio.db.tator_db import init_api, find_project
 from bio.logger import create_logger_file, info, err
@@ -15,7 +16,8 @@ DEFAULT_BASE_DIR = Path(__file__).parent.as_posix()
 DEFAULT_VERSION = 'Baseline'
 DEFAULT_PROJECT = '901103-biodiversity'
 
-voc_xml_path = Path('/Users/dcline/Dropbox/code/bio-ai/CtenophoraData')
+voc_xml_path = Path('/raid/dcline-admin/m3-download/Ctenophora_sp_A_confused/xml/')
+voc_img_path = Path('/raid/dcline-admin/m3-download/Ctenophora_sp_A_confused/images/')
 image_url_base = 'http://digits-dev-box-fish.shore.mbari.org:8080/Ctenophora_sp_A_confused/'
 
 def is_valid_url(url):
@@ -114,6 +116,16 @@ if __name__ == '__main__':
             image_type = m.id
             break
 
+    def is_grayscale(img_path):
+        img = PIL.Image.open(img_path).convert('RGB')
+        w, h = img.size
+        for i in range(w):
+            for j in range(h):
+                r, g, b = img.getpixel((i,j))
+                if r != g != b: 
+                    return False
+        return True
+
     # Get the localization type
     localization_types = api.get_localization_type_list(project.id)
 
@@ -128,11 +140,24 @@ if __name__ == '__main__':
     for xml_file in voc_xml_path.rglob('*.xml'):
 
         # form the image url
+        image_path = None
         for ext in ['.jpg', '.png']:
             image_name = xml_file.name.replace('.xml', ext)
             image_url = image_url_base + image_name
-            if is_valid_url(image_url):
+            image_path = voc_img_path / image_name
+            if is_valid_url(image_url) and image_path.exists():
+                info(f'Image {image_name} found')
                 break
+
+        if image_path == None or not image_path.exists():
+            info(f'Image not found to associatw with {xml_file}')
+            continue
+
+        # If the image is grayscale then skip it
+        # Read using PIL to get the number of channels
+        if is_grayscale(image_path):
+            err(f'Image {image_name} is grayscale. Skipping')
+            continue
 
         # upload the image url reference
         info(f'Importing image url {image_url}')
@@ -167,7 +192,10 @@ if __name__ == '__main__':
         # load the localizations
         info(f'Loading localizations from {xml_file}')
         boxes = voc_to_obj(xml_file, box_type=box_type, media_id=image_id, project_id=project.id)
-        response = api.create_localization_list(project.id, boxes)
+        try:
+            response = api.create_localization_list(project.id, boxes)
+        except Exception as e:
+            err('Error loading but trying to continue')
 
     end_time = time.time()
     elapsed_time = end_time - start_time
